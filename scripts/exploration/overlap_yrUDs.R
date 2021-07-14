@@ -8,19 +8,34 @@ yrudfolder <- "data/analysis/yearly_UDs/"
 stage <- "chick_rearing"
 # stage <- "incubation"
 
-yrudfolders   <- list.files(paste0(yrudfolder, stage), full.names = T)
+# htype <- "mag" #
+# htype <- "href1" # href, using smoothed values for outlier species
+htype <- "href2" # half of smoothed href
+
+yrudfolders     <- list.files(paste0(yrudfolder, stage), full.names = T)
 yrudfoldernames <- list.files(paste0(yrudfolder, stage), full.names = F)
 
 overs_list <- list()
 
 for(i in seq_along(yrudfolders)){
   print(i)
-  yrudfiles <- list.files(yrudfolders[i], full.names = T)
+  yrudfiles <- str_subset(list.files(yrudfolders[i], full.names = T), pattern=fixed(htype))
   
   yruds <- lapply(seq_along(yrudfiles), function(x) raster(yrudfiles[x]))
-  yrs   <- unlist(
-    lapply(yruds, function(x)tail(str_split(x@data@names, pattern="_")[[1]], 1))
+
+  if(sp == "Sula leucogaster"){
+    yrs   <- unlist(
+      lapply(yruds, function(x) 
+        paste( tail(
+          str_split(x@data@names, pattern="_")[[1]], 3)[1:2], collapse = "_")
+      )
     )
+  } else {
+    yrs   <- unlist(
+      lapply(yruds, function(x) tail(str_split(x@data@names, pattern="_")[[1]], 2)[1]
+      )
+    )
+  }
   
   sp      <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,1][i]
   site    <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,2][i]
@@ -50,7 +65,7 @@ for(i in seq_along(yrudfolders)){
               BA = yr_mtrx[ indx ] )
   
   yr_over <- yr_over %>% mutate(
-    scientific_name = sp, site_name = site, breeding_stage = bstage
+    scientific_name = sp, site_name = site, breeding_stage = stage
   )
   overs_list[[i]] <- yr_over
 }
@@ -58,14 +73,15 @@ for(i in seq_along(yrudfolders)){
 overs_df <- rbindlist( overs_list )
 
 ## Save ## 
-
-saveRDS(overs_df, "data/analysis/overlap/overlap_yrUDs.rds")
+saveRDS(overs_df, paste0("data/analysis/overlap/overlap_yrUDs_", htype, ".rds"))
 
 ## plot ##
+
+overs_df <- readRDS(paste0("data/analysis/overlap/overlap_yrUDs_", htype, ".rds"))
 
 ggplot() + 
   geom_point(data=overs_df, aes(x=reorder(scientific_name, BA), y=BA)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
 
-ggsave("figures/overlap_yrUDs.png", width=8, height=6)
+ggsave(paste0("figures/overlap_yrUDs_", htype, ".png"), width=8, height=6)

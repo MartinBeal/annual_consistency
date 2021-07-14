@@ -8,8 +8,8 @@ pacman::p_load(
 stage  <- "chick_rearing"
 # stage  <- "brood-guard
 
-# datatype <- "raw"
-datatype <- "interpolated"
+datatype <- "raw"
+# datatype <- "interpolated"
 
 if(datatype=="raw"){
   folder <- paste0("data/analysis/trip_split/", stage, "/")
@@ -20,12 +20,30 @@ if(datatype=="raw"){
 filenames  <- list.files(folder)
 files      <- list.files(folder, full.names = T)
 
+sfolder <- "data/analysis/trip_summary/"
+sfiles <- list.files(paste0(sfolder, stage), full.names = T)
+
+## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
+n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
+
+thresh <- 9
+
 hr_dists <- list()
 
 for(i in seq_along(files)){
   one <- readRDS(files[i])
   scientific_name <- one$scientific_name[1]
   site_name <- one$site_name[1]
+  
+  tsumm   <- readRDS(sfiles[i])
+  tsumm   <- dplyr::filter(tsumm, tripID != "-1") ## remove 'non-trip' periods
+  
+  ## check sample size ##
+  onessize <- n_trx[n_trx$sp==scientific_name & n_trx$site==site_name, ]
+  
+  if(onessize$n_yrs_10<3){
+    print(paste(scientific_name, "doesnt have enough years")); next}
+  
   
   one_prj <- projectTracks(one, custom = T, projType="azim")
   prj <- one_prj@proj4string
@@ -74,57 +92,32 @@ for(i in seq_along(files)){
   
   hr_dist <- median(na.omit(dists$tot_dist)) / 1000 
 
-  if(datatype=="raw"){
-    tripSum <- tripSummary(one, colony=
-                             data.frame(
-                               Latitude=one$lat_colony[1],
-                               Longitude=one$lon_colony[1])
-                           )
+  hvals <- findScale(one_prj, sumTrips=tsumm)
+  sqrt_half <- sqrt(hvals$med_max_dist)/2
+  
+  hr_dists[[i]] <- data.frame(scientific_name, site_name, timesteps, hvals, hr_dist, sqrt_half)
 
-    hvals <- findScale(one_prj, sumTrips=tripSum)
-    sqrt_half <- sqrt(hvals$med_max_dist)/2
-    hvals
-    hr_dists[[i]] <- data.frame(scientific_name, site_name, timesteps, hvals, hr_dist, sqrt_half)
-  } else if(datatype=="interpolated"){
-    
-    IDs <- unique(one$ID)
-    
-    href_list <- vector(mode = "list", length(IDs))
-    href_list <- lapply(split(one_prj, one_prj$ID), function(x) {
-      xy <- coordinates(x)
-      varx <- stats::var(xy[, 1])
-      vary <- stats::var(xy[, 2])
-      sdxy <- sqrt(0.5 * (varx + vary))
-      n <- nrow(xy)
-      ex <- (-1/6)
-      href <- sdxy * (n^ex)
-      
-      result <- data.frame(varx, vary, sdxy, n, href)
-      return(result)
-    })
-    hrefs <- do.call(rbind, href_list)
-    href <- median(na.omit(hrefs$href))/1000
-    href
-    
-    hr_dists[[i]] <- data.frame(scientific_name, site_name, timesteps, hr_dist, href)
-  }
-    
 }
 
-allhvals  <- do.call(rbind, hr_dists)
+allhvals <- do.call(rbind, hr_dists)
 
 ## remove spp not analyzed cuz small n yrs ##
-allhvals <- allhvals %>% filter(!scientific_name %in% c("Phalacrocorax pelagicus", "Aptenodytes patagonicus", 
-                                                  "Ardenna tenuirostris"))
+# allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
+#                                                   "Ardenna tenuirostris"))
 
 ## Save ## 
 if(datatype=="raw"){
-  saveRDS(allhvals , "data/analysis/smoothing_parameters/data/summaries/smoothing_parameters_rawdata.rds")
+  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
 } else{
-  saveRDS(allhvals , "data/analysis/smoothing_parameters/data/summaries/smoothing_parameters_interpolated.rds")
+  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
 }
 
 View(allhvals)
+
+
+## remove spp not analyzed cuz small n yrs ##
+allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
+                                                        "Ardenna tenuirostris"))
 
 ggplot() + 
   # geom_point(data=hr_dists, aes(x=reorder(scientific_name, med_max_dist), y=med_max_dist)) +
@@ -144,13 +137,24 @@ ggsave("figures/smoothing_params_compare.png", width=8, height=6)
 allhvals_r <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
 allhvals_i <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
 
-allhvals <- left_join(allhvals_r, allhvals_i, by = c("scientific_name", "site_name")) %>% 
-  rename(med_ts_r=med_ts.x, href_r=href.x, hr_dist_r=hr_dist.x, 
-         med_ts_i=med_ts.y, href_i=href.y, hr_dist_i=hr_dist.y)
+allhvals <- left_join(allhvals_r, allhvals_i, 
+                      by = c("scientific_name", "site_name", "med_max_dist", "mag", "sqrt_half")) %>% 
+  rename(med_ts_r=med_ts.x, href_r=href.x, hr_dist_r=hr_dist.x,
+         step_length_r = step_length.x, scaleARS_r = scaleARS.x,
+         med_ts_i=med_ts.y, href_i=href.y, hr_dist_i=hr_dist.y,
+         step_length_i = step_length.y, scaleARS_i = scaleARS.y,)
 
+## Save ##
+# saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters.rds")
+# fwrite( allhvals, "data/summaries/smoothing_parameters.csv")
 
-# model selection
+## model selection ## -----------------------
 library(splines)
+
+## remove spp not analyzed cuz small n yrs ##
+allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
+                                                  "Ardenna tenuirostris"))
+
 
 allhvals$scientific_name <- reorder(allhvals$scientific_name, allhvals$med_max_dist)
 
@@ -162,8 +166,7 @@ plot(allhvals$sp_num_id, allhvals$href_i)
 fit2 <- lm( href_i~poly(sp_num_id,2), data=allhvals)
 # fit3 <- lm( href_i~poly(sp_num_id,3), data=allhvals)
 # 
-# pred <- seq(0,30)
-# 
+pred <- seq(0,30)
 # lines(pred, predict(fit1, data.frame(sp_num_id=pred)), col='blue')
 lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 # lines(pred, predict(fit3, data.frame(sp_num_id=pred)), col='red')
@@ -197,7 +200,7 @@ outliers <- which(abs(resid(fit2))>10)
 # hrefs
 
 ## use original fit line (w all data) ## -------------------------
-out_hvals <- predict(fit2_b, data.frame(sp_num_id=pred))[allhvals[outliers, ]$sp_num_id]
+# out_hvals <- predict(fit2_b, data.frame(sp_num_id=pred))[allhvals[outliers, ]$sp_num_id]
 out_hvals <- predict(fit2, data.frame(sp_num_id=pred))[allhvals[outliers, ]$sp_num_id]
 
 hrefs <- allhvals
@@ -205,26 +208,27 @@ hrefs$outlier <- ifelse(zoo::index(hrefs) %in% outliers, T, F)
 hrefs$href_f <- hrefs$href_i
 hrefs$href_f[outliers] <- out_hvals
 
+## divide hrefs by 2 to decrease degree of oversmoothing by same factor for all species
+hrefs$href_2 <- hrefs$href_f/2
+
+## Save ##
+saveRDS(hrefs, "data/analysis/smoothing_parameters/smoothing_parameters.rds")
+fwrite( hrefs, "data/summaries/smoothing_parameters.csv")
+
+
 plot(hrefs$sp_num_id, hrefs$href_i, col="red", pch=20)
 points(hrefs$sp_num_id, hrefs$href_f, pch=20)
 points(hrefs[hrefs$outlier==T, ]$sp_num_id, hrefs[hrefs$outlier==T, ]$href_f, col="blue", pch=20)
 lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 
-## remove spp not analyzed cuz small n yrs ##
-hrefs <- hrefs %>% filter(!scientific_name %in% c("Phalacrocorax pelagicus", "Aptenodytes patagonicus", 
-                                                  "Ardenna tenuirostris"))
-
-saveRDS(hrefs, "data/analysis/smoothing_parameters/smoothing_parameters.rds")
-fwrite(hrefs, "data/summaries/smoothing_parameters.csv")
-
 ## plot comparison
 ggplot() + 
-  # geom_point(data=hr_dists, aes(x=reorder(scientific_name, med_max_dist), y=med_max_dist)) +
-  geom_point(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=mag), color='red') +
-  geom_point(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_i), color='light blue') +
-  geom_point(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_f), color='blue') +
-  geom_point(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=scaleARS), color='orange') +
-  geom_point(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=sqrt_half), color='purple') +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_2), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=mag), color='red', width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_i), color='light blue', width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_f), color='blue', width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=scaleARS_i), color='orange', width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=sqrt_half), color='purple', width = .1, height=0) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ylab("Smoothing parameter (km)") + xlab("")
 

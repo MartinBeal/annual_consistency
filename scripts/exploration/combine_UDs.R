@@ -12,13 +12,19 @@ udfolder <- "data/analysis/ind_UDs/"
 stage <- "chick_rearing"
 # stage <- "incubation"
 
+## which h-value data to use? ##
+htype <- "mag" #
+# htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "href2" # half of smoothed href
+
 ## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
 n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
 ## table w/ all bird and trip ids for selection ##
 allids <- fread(paste0("data/summaries/allids_", stage, ".csv"))
 ## utilization distributions ##
-udfiles <- list.files(paste0(udfolder, stage), full.names = T)
-udfilenames <- list.files(paste0(udfolder, stage), full.names = F)
+udfiles <- str_subset(list.files(paste0(udfolder, stage), full.names = T), pattern=fixed(htype))
+udfilenames <- str_subset(list.files(paste0(udfolder, stage), full.names = F), pattern=fixed(htype))
+
 
 thresh <- 9 # minimum # of birds needed per year for inclusion in analysis
 
@@ -75,7 +81,7 @@ for(i in seq_along(udfiles)){
   KDEselected <- raster::subset(KDEraster, selected$tripID)
   
   outfolder <- paste0("data/analysis/interannual_UDs/", stage, "/")
-  filename  <- paste0(outfolder, paste(asp, site, bstage, sep = "_"), ".tif")
+  filename  <- paste0(outfolder, paste(asp, site, bstage, htype, sep = "_"), ".tif")
   
   # arithmetic mean - all individuals equally weighted --------------------
   KDEinterann_a <- raster::calc(KDEselected, 
@@ -90,12 +96,13 @@ for(i in seq_along(udfiles)){
     yr <- yrs[x]
     oneyr <- KDEids %>% filter(season_year == yr) %>% 
       group_by(bird_id) %>% sample_n(1)
+    
     KDEselected_yr <- raster::subset(KDEraster, oneyr$tripID)
     
     outfolder <- paste0("data/analysis/yearly_UDs/", stage, "/", 
                         paste(asp, site, sep="_"), "/")
     if(!dir.exists(outfolder)){dir.create(outfolder)}
-    filename  <- paste0(outfolder, paste(asp, site, bstage, yr, sep = "_"), ".tif")
+    filename  <- paste0(outfolder, paste(asp, site, bstage, yr, htype, sep = "_"), ".tif")
     
     KDEyr_a <- raster::calc(KDEselected_yr,
                             mean, filename = filename, overwrite=T) # arithmetic mean

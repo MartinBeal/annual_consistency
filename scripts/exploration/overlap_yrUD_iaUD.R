@@ -9,9 +9,12 @@ yrudfolder <- "data/analysis/yearly_UDs/"
 stage <- "chick_rearing"
 # stage <- "incubation"
 
+htype <- "mag" #
+# htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "href2" # href, using smoothed values for outlier species
 
-iaudfiles     <- list.files(paste0(iaudfolder, stage), full.names = T)
-iaudfilenames <- list.files(paste0(iaudfolder, stage), full.names = F)
+iaudfiles     <- str_subset(list.files(paste0(iaudfolder, stage), full.names = T), pattern=fixed(htype))
+iaudfilenames <- str_subset(list.files(paste0(iaudfolder, stage), full.names = F), pattern=fixed(htype))
 
 yrudfolders   <- list.files(paste0(yrudfolder, stage), full.names = T)
 yrudfoldernames <- list.files(paste0(yrudfolder, stage), full.names = F)
@@ -22,7 +25,7 @@ for(i in seq_along(iaudfiles)){
   print(i)
   iaud  <- raster(iaudfiles[i])
   # yruds <- readRDS(yrudfiles[i])
-  yrudfiles <- list.files(yrudfolders[i], full.names = T)
+  yrudfiles <- str_subset(list.files(yrudfolders[i], full.names = T), pattern=htype)
   
   yruds <- lapply(seq_along(yrudfiles), function(x) raster(yrudfiles[x]))
   
@@ -34,12 +37,12 @@ for(i in seq_along(iaudfiles)){
     yrs   <- unlist(
       lapply(yruds, function(x) 
         paste( tail(
-          str_split(x@data@names, pattern="_")[[1]], 2), collapse = "_")
+          str_split(x@data@names, pattern="_")[[1]], 3)[1:2], collapse = "_")
       )
     )
   } else {
     yrs   <- unlist(
-      lapply(yruds, function(x) tail(str_split(x@data@names, pattern="_")[[1]], 1)
+      lapply(yruds, function(x) tail(str_split(x@data@names, pattern="_")[[1]], 2)[1]
       )
     )
   }
@@ -77,16 +80,18 @@ overs_df <- overs_df %>%
   filter(!is.na(n))
 
 ## Save ## 
-saveRDS(overs_df, "data/analysis/overlap/overlap_yrUDs_iaUD.rds")
+saveRDS(overs_df, paste0("data/analysis/overlap/overlap_yrUDs_iaUD_", htype, ".rds"))
 
 
 ## plot ## -------------------------------------------------------------------
+overs_df <- readRDS(paste0("data/analysis/overlap/overlap_yrUDs_iaUD_", htype, ".rds"))
+
 ggplot() + 
   geom_point(data=overs_df, aes(x=reorder(scientific_name, BA), y=BA)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
 
-ggsave("figures/overlap_yrUD_iaUD.png", width=8, height=6)
+ggsave(paste0("figures/overlap_yrUD_iaUD_", htype, ".png"), width=8, height=6)
 
 ##
 ggplot() + 

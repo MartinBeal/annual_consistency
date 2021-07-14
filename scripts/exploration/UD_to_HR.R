@@ -11,12 +11,17 @@ yrudfolder <- "data/analysis/yearly_UDs/"
 ## table w/ all bird and trip ids for selection ##
 allids <- fread(paste0("data/summaries/allids_", stage, ".csv"))
 
-# analyze chick-rearing or incubation (or post-guard)
+## analyze chick-rearing or incubation (or post-guard) ------
 stage <- "chick_rearing"
 # stage <- "incubation"
 
-iaudfiles     <- list.files(paste0(iaudfolder, stage), full.names = T)
-iaudfilenames <- list.files(paste0(iaudfolder, stage), full.names = F)
+## which h-value data to use? ## --------------
+# htype <- "mag" #
+# htype <- "href1" # href, using smoothed values for outlier species
+htype <- "href2" # half of smoothed href
+
+iaudfiles     <- str_subset(list.files(paste0(iaudfolder, stage), full.names = T), pattern=fixed(htype))
+iaudfilenames <- str_subset(list.files(paste0(iaudfolder, stage), full.names = F), pattern=fixed(htype))
 
 yrudfolders   <- list.files(paste0(yrudfolder, stage), full.names = T)
 yrudfoldernames <- list.files(paste0(yrudfolder, stage), full.names = F)
@@ -27,27 +32,27 @@ for(i in seq_along(iaudfiles)){
   print(i)
   iaud  <- raster(iaudfiles[i])
   
-  yrudfiles <- list.files(yrudfolders[i], full.names = T)
+  yrudfiles <- str_subset(list.files(yrudfolders[i], full.names = T), pattern=fixed(htype))
   yruds <- lapply(seq_along(yrudfiles), function(x) raster(yrudfiles[x]))
-  
-  if(sp == "Sula leucogaster"){
-    yrs   <- unlist(
-      lapply(yruds, function(x) 
-        paste( tail(
-          str_split(x@data@names, pattern="_")[[1]], 2), collapse = "_")
-      )
-    )
-  } else {
-    yrs   <- unlist(
-      lapply(yruds, function(x) tail(str_split(x@data@names, pattern="_")[[1]], 1)
-      )
-    )
-  }
   
   sp      <- do.call(rbind, str_split(iaudfilenames, pattern="_"))[,1][i]
   site    <- do.call(rbind, str_split(iaudfilenames, pattern="_"))[,2][i]
   bstage  <- tools::file_path_sans_ext(do.call(rbind, str_split(iaudfilenames, pattern="_"))[,3][i])
   
+  if(sp == "Sula leucogaster"){
+    yrs   <- unlist(
+      lapply(yruds, function(x) 
+        paste( tail(
+          str_split(x@data@names, pattern="_")[[1]], 3)[1:2], collapse = "_")
+      )
+    )
+  } else {
+    yrs   <- unlist(
+      lapply(yruds, function(x) tail(str_split(x@data@names, pattern="_")[[1]], 2)[1]
+      )
+    )
+  }
+
   ## CDFs, 95% and 50% ##
   KDEia95 <- ud2iso(iaud, 95, simple = F)     # contour areas
   KDEia50 <- ud2iso(iaud, 50, simple = F)
@@ -58,23 +63,37 @@ for(i in seq_along(iaudfiles)){
   polys50 <- as(KDEia50, "SpatialPolygons")
   KDEia50_poly <- rgeos::gUnaryUnion(polys50) %>% st_as_sf() %>% mutate(level=50)
   
+  ## Inter-annual ranges - 95% UD##
+  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype, "95", sep = "_"), ".rds")
+  saveRDS(KDEia95, filename)
+  ## ...polygon
+  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype, "95", sep = "_"), ".rds")
+  saveRDS(KDEia95_poly, filename)
+  ## Inter-annual ranges - 50% UD ##
+  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
+  saveRDS(KDEia50, filename)
+  ## ...polygon
+  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
+  saveRDS(KDEia50_poly, filename)
+  
+  rm(KDEia95, KDEia50, KDEia95_poly, KDEia50_poly)
+  
   KDEyrs95_a <- list()
   KDEyrs50_a <- list()
   KDEyrs95_poly <- list()
   KDEyrs50_poly <- list()
   
   for(x in seq_along(yrs)){
+    print(x)
     # filter to one year of data and randomly select one trip per bird #
     yr <- yrs[x]
     
     KDEyr_a <- yruds[[x]] # arithmetic mean
     # mapview::mapview(KDEyr_a)
-
-    outfolder <- paste0("data/analysis/yearly_UDs/", stage, "/", 
-                        paste(sp, site, sep="_"), "/")
-    if(!dir.exists(outfolder)){dir.create(outfolder)}
-    filename  <- paste0(outfolder, paste(sp, site, bstage, yr, sep = "_"), ".rds")
-    saveRDS(KDEyr_a, filename)
     
     ## CDFs, 95% and 50%
     KDEyr95 <- ud2iso(KDEyr_a, 95, simple = T)     # contour areas
@@ -92,39 +111,25 @@ for(i in seq_along(iaudfiles)){
     KDEyrs50_poly[[x]] <- KDEyr50_poly
   }
   
-  ## Inter-annual ranges - 95% UD##
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/95/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
-  saveRDS(KDEinterann95, filename)
-  ## ...polygon
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/95/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
-  saveRDS(KDEinterann95_poly, filename)
-  ## Inter-annual ranges - 50% UD ##
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/50/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
-  saveRDS(KDEinterann50, filename)
-  ## ...polygon
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/50/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
-  saveRDS(KDEinterann50_poly, filename)
-  
   ## Yearly ranges - 95% UD ##
-  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/raster/95/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
+  names(KDEyrs95_a) <- yrs
+  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/raster/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"95", sep = "_"), ".rds")
   saveRDS(KDEyrs95_a, filename)
   ## ...polygon
-  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/polygon/95/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
+  names(KDEyrs95_poly) <- yrs
+  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/polygon/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"95", sep = "_"), ".rds")
   saveRDS(KDEyrs95_poly, filename)
   ## Yearly ranges - 50% UD ##
-  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/raster/50/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
+  names(KDEyrs50_a) <- yrs
+  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/raster/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
   saveRDS(KDEyrs50_a, filename)
   ## ...polygon
-  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/polygon/50/")
-  filename  <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
+  names(KDEyrs50_poly) <- yrs
+  outfolder <- paste0("data/analysis/yearly_HRs/", stage, "/polygon/")
+  filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
   saveRDS(KDEyrs50_poly, filename)
-  
 }
   

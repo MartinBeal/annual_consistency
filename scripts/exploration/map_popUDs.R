@@ -16,14 +16,19 @@ yrud95_folder <- "data/analysis/yearly_HRs/chick_rearing/polygon/95/"
 stage <- "chick_rearing"
 # stage <- "incubation"
 
-iaud50_files <- list.files(iaud50_folder, full.names = T)
-iaud95_files <- list.files(iaud95_folder, full.names = T)
-yrud50_files <- list.files(yrud50_folder, full.names = T)
-yrud95_files <- list.files(yrud95_folder, full.names = T)
-iaud50_filenames <- list.files(iaud50_folder)
-iaud95_filenames <- list.files(iaud95_folder)
-yrud50_filenames <- list.files(yrud50_folder)
-yrud95_filenames <- list.files(yrud95_folder)
+## which h-value data to use? ## -------------------
+# htype <- "mag" # 
+htype <- "href" # href, using smoothed values for outlier species
+# htype <- "href2" # half of smoothed href
+
+iaud50_files <- str_subset(list.files(iaud50_folder, full.names = T), pattern=fixed(htype))
+iaud95_files <- str_subset(list.files(iaud95_folder, full.names = T), pattern=fixed(htype))
+yrud50_files <- str_subset(list.files(yrud50_folder, full.names = T), pattern=fixed(htype))
+yrud95_files <- str_subset(list.files(yrud95_folder, full.names = T), pattern=fixed(htype))
+iaud50_filenames <- str_subset(list.files(iaud50_folder), pattern=fixed(htype))
+iaud95_filenames <- str_subset(list.files(iaud95_folder), pattern=fixed(htype))
+yrud50_filenames <- str_subset(list.files(yrud50_folder), pattern=fixed(htype))
+yrud95_filenames <- str_subset(list.files(yrud95_folder), pattern=fixed(htype))
 
 spp   <- do.call(rbind, str_split(iaud50_filenames, pattern = "_"))[,1]
 sites <- do.call(rbind, str_split(iaud50_filenames, pattern = "_"))[,2]
@@ -53,20 +58,29 @@ for(i in seq_along(iaud50_files)){
   # #### Re-center data ####
   # shift   <- -180 # Degrees from prime meridian to shift map
   # central_meridian <- 360 + shift
-  # re_iaud <- recentre(iaud, shift)
+  # iaud <- recentre(iaud, shift)
+  
+  ## these species are high latitude, make it difficult to re-project landpolygons ##
+  if(!sp %in% c("Pygoscelis antarcticus", "Thalassarche melanophris", "Thalassarche chrysostoma")){
+    land <- st_transform(land, crs = st_crs(iaud))
+  } else {
+    iaud <- st_transform(iaud, 4326)
+  }
+  
   land_prj <- st_transform(land, crs = st_crs(iaud))
   
   xtnt <- st_bbox(iaud)
   iamap <- ggplot() + geom_sf(data=iaud, aes(fill=level), color=NA) +
     # borders("world") +
-    geom_sf(data=land_prj) +
+    geom_sf(data=land) +
     coord_sf(
       xlim = c(xtnt[1], xtnt[3]), ylim = c(xtnt[2], xtnt[4]), expand = F) + 
     ggtitle(paste(sp, "-", site, "-", length(yrud50), "years")) + theme_bw() 
+  iamap
   
   ## Save ##
   ggsave(paste0("figures/dist_maps_interannual/",
-                      paste(sp, site, stage, sep = "_"), ".png"), plot=iamap)
+                paste(sp, site, stage, htype, sep = "_"), ".png"), plot=iamap)
   
   ## map each yearly distribution ## ---------------------------------------
   yrs <- names(yrud95)
@@ -76,11 +90,15 @@ for(i in seq_along(iaud50_files)){
     )
   yruds$year <- c(yrs, yrs)
   
+  if(sp %in% c("Pygoscelis antarcticus", "Thalassarche melanophris", "Thalassarche chrysostoma")){
+    yruds <- st_transform(yruds, 4326)
+  }
+  
   # yruds <- sf::st_transform(yruds, crs=4326)
   
   yrmap <- ggplot() + geom_sf(data=yruds, aes(fill=level), color=NA) +
-    borders("world", fill="grey") +
-    geom_sf(data=land_prj) +
+    # borders("world", fill="grey") +
+    geom_sf(data=land) +
     coord_sf(
       xlim = c(xtnt[1], xtnt[3]), ylim = c(xtnt[2], xtnt[4]), expand = F)+ 
     ggtitle(paste(sp, "-", site, "-", length(yrud50), "years")) + 
@@ -89,5 +107,6 @@ for(i in seq_along(iaud50_files)){
   
   ## Save ##
   ggsave(paste0("figures/dist_maps_yearly/",
-                paste(sp, site, stage, sep = "_"), ".png"), plot=yrmap)
+                paste(sp, site, stage, htype, sep = "_"), ".png"), plot=yrmap)
+  
 }
