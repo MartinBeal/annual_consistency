@@ -150,10 +150,12 @@ allhvals <- left_join(allhvals_r, allhvals_i,
 
 ## model selection ## -----------------------
 library(splines)
+allhvals <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
+
 
 ## remove spp not analyzed cuz small n yrs ##
-allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
-                                                  "Ardenna tenuirostris"))
+# allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
+                                                  # "Ardenna tenuirostris"))
 
 
 allhvals$scientific_name <- reorder(allhvals$scientific_name, allhvals$med_max_dist)
@@ -192,10 +194,6 @@ outliers <- which(abs(resid(fit2))>10)
 # hrefs$href_f <- hrefs$href_i
 # hrefs$href_f[outliers] <- out_hvals
 # 
-# plot(hrefs$sp_num_id, hrefs$href_i, col="red", pch=20)
-# points(hrefs$sp_num_id, hrefs$href_f, pch=20)
-# points(hrefs[hrefs$outlier==T, ]$sp_num_id, hrefs[hrefs$outlier==T, ]$href_f, col="blue", pch=20)
-# lines(pred, predict(fit2_b, data.frame(sp_num_id=pred)), col='purple')
 # 
 # hrefs
 
@@ -211,6 +209,11 @@ hrefs$href_f[outliers] <- out_hvals
 ## divide hrefs by 2 to decrease degree of oversmoothing by same factor for all species
 hrefs$href_2 <- hrefs$href_f/2
 
+plot(hrefs$sp_num_id, hrefs$href_i, col="red", pch=20, xlab="Species rank", ylab="Smoothing parameter (km)")
+points(hrefs$sp_num_id, hrefs$href_f, pch=20)
+points(hrefs[hrefs$outlier==T, ]$sp_num_id, hrefs[hrefs$outlier==T, ]$href_f, col="blue", pch=20)
+lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
+
 ## Save ##
 saveRDS(hrefs, "data/analysis/smoothing_parameters/smoothing_parameters.rds")
 fwrite( hrefs, "data/summaries/smoothing_parameters.csv")
@@ -222,15 +225,24 @@ points(hrefs[hrefs$outlier==T, ]$sp_num_id, hrefs[hrefs$outlier==T, ]$href_f, co
 lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 
 ## plot comparison
-ggplot() + 
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_2), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=mag), color='red', width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_i), color='light blue', width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_f), color='blue', width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=scaleARS_i), color='orange', width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=sqrt_half), color='purple', width = .1, height=0) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylab("Smoothing parameter (km)") + xlab("")
+hrefs <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
 
+
+ggplot() + 
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_2, color="href_2"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=mag, color="mag"),  width = .1, height=0) +
+  # geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_i, color="href_i"), color='light blue', width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_f, color="href_f"), width = .1, height=0) +
+  # geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=scaleARS_i, color="scaleARS_i"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=sqrt_half, color="sqrt_half"), width = .1, height=0) + theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+          legend.title = element_blank()) + 
+  ylab("Smoothing parameter (km)") + xlab("") + 
+  scale_colour_manual(values = c("black", "red", "blue", "purple"))
+  # scale_colour_manual(values = c("black", "red", "blue", "orange", "purple"))
+
+ggsave("figures/smoothing_params_compare.png", width=8, height=6)
+# ggsave("figures/smoothing_params_compare_wARS.png", width=8, height=6)
+
+## show 
 ggsave("figures/smoothing_params_compare_href_fit.png", width=8, height=6)
 

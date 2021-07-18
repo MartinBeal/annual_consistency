@@ -7,28 +7,47 @@ source("C:\\Users\\Martim Bill\\Documents\\R\\source_scripts\\UD_fxns.R")
 source("C:/Users/Martim Bill/Documents/R/source_scripts/recenter_map_fxn.r") # mapdata re-centering function
 
 ## Data input ~~~~~~~~~~~~~~~~~~
-iaud50_folder <- "data/analysis/interannaul_HRs/chick_rearing/polygon/50/"
-iaud95_folder <- "data/analysis/interannaul_HRs/chick_rearing/polygon/95/"
-yrud50_folder <- "data/analysis/yearly_HRs/chick_rearing/polygon/50/"
-yrud95_folder <- "data/analysis/yearly_HRs/chick_rearing/polygon/95/"
-
 # analyze chick-rearing or incubation (or post-guard)
 stage <- "chick_rearing"
 # stage <- "incubation"
 
 ## which h-value data to use? ## -------------------
-# htype <- "mag" # 
-htype <- "href" # href, using smoothed values for outlier species
+# htype <- "mag" #
+htype <- "href1" # href, using smoothed values for outlier species
 # htype <- "href2" # half of smoothed href
 
-iaud50_files <- str_subset(list.files(iaud50_folder, full.names = T), pattern=fixed(htype))
-iaud95_files <- str_subset(list.files(iaud95_folder, full.names = T), pattern=fixed(htype))
-yrud50_files <- str_subset(list.files(yrud50_folder, full.names = T), pattern=fixed(htype))
-yrud95_files <- str_subset(list.files(yrud95_folder, full.names = T), pattern=fixed(htype))
-iaud50_filenames <- str_subset(list.files(iaud50_folder), pattern=fixed(htype))
-iaud95_filenames <- str_subset(list.files(iaud95_folder), pattern=fixed(htype))
-yrud50_filenames <- str_subset(list.files(yrud50_folder), pattern=fixed(htype))
-yrud95_filenames <- str_subset(list.files(yrud95_folder), pattern=fixed(htype))
+str_subset(list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), pattern=fixed(htype))
+
+iaud50_files <- str_subset(
+  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), 
+             pattern = "50", full.names = T), 
+  pattern=fixed(htype))
+iaud95_files <- str_subset(
+  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"),
+             pattern = "95", full.names = T), 
+  pattern=fixed(htype))
+yrud50_files <- str_subset(
+  list.files(paste0("data/analysis/yearly_HRs/", stage, "/polygon/"), 
+             pattern = "50", full.names = T), 
+  pattern=fixed(htype))
+yrud95_files <- str_subset(
+  list.files(paste0("data/analysis/yearly_HRs/", stage, "/polygon/"), 
+             pattern = "95", full.names = T), 
+  pattern=fixed(htype))
+
+iaud50_filenames <- str_subset(
+  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), 
+  pattern=fixed(htype))
+iaud95_filenames <- str_subset(
+  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "95"), 
+  pattern=fixed(htype))
+yrud50_filenames <- str_subset(
+  list.files(paste0("data/analysis/yearly_HRs/", stage, "/polygon/"), pattern = "50"), 
+  pattern=fixed(htype))
+yrud95_filenames <- str_subset(
+  list.files(paste0("data/analysis/yearly_HRs/", stage, "/polygon/"), pattern = "95"), 
+  pattern=fixed(htype))
+
 
 spp   <- do.call(rbind, str_split(iaud50_filenames, pattern = "_"))[,1]
 sites <- do.call(rbind, str_split(iaud50_filenames, pattern = "_"))[,2]
@@ -49,12 +68,12 @@ for(i in seq_along(iaud50_files)){
   
   ## map full interannaul distribution ## ------------------------------------
   iaud <- rbind(iaud95, iaud50) %>% mutate(level=factor(level, levels = c("95", "50")))
-
+  
   ## re-center data for dateline-crossers
   # iaud <- st_buffer(iaud, 0)
   # iaud <- sf::st_transform(iaud, crs=4326)
   # iaud <- st_make_valid(iaud)
-
+  
   # #### Re-center data ####
   # shift   <- -180 # Degrees from prime meridian to shift map
   # central_meridian <- 360 + shift

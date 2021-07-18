@@ -1,8 +1,10 @@
-### Calculate UDs for each independent track (trip/ID) ### 
+## Calculate centroid of foraging area for each species-site ## ---------------
 
-pacman::p_load(track2KBA, amt, dplyr, sp, sf, move, ggplot2, stringr, SDLfilter,
-               data.table)
+# Filtering procedure at the start is same as in KDE.r script, to ensure only
+# valid trips are included. These centroids are calculated from ALL trips, 
+# rather than from only one trip per individual.
 
+pacman::p_load(data.table, dplyr, sp, sf, raster)
 
 ## Data input ~~~~~~~~~~~~~~~~~~
 tfolder <- "data/analysis/interpolated/"
@@ -12,26 +14,20 @@ sfolder <- "data/analysis/trip_summary/"
 stage <- "chick_rearing"
 # stage <- "incubation"
 
+# ## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
+n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
+
 ## which h-value data to use? ##
 # htype <- "mag" #
 htype <- "href1" # href, using smoothed values for outlier species
 # htype <- "href2" # half of smoothed href
-
-## table of h-values from different methods ##
-allhvals <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
-
-# ## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
-n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
-
-meta <- read.csv("data/analysis/spp_parameters.csv")
 
 tfiles <- list.files(paste0(tfolder, stage), full.names = T)
 sfiles <- list.files(paste0(sfolder, stage), full.names = T)
 
 f_summ <- vector(mode="list", length(tfiles))
 
-## 
-comb_strips <- FALSE
+centroid_list <- list()
 
 # tfiles <- tfiles[5]
 # sfiles <- sfiles[5]
@@ -69,7 +65,6 @@ for(i in seq_along(tfiles)){
   tsumm <- tracks %>% group_by(birdID, tripID) %>% summarise(n_locs_i = n()) %>% 
     left_join(tsumm, by=c("birdID", "tripID"))
   
-  n_birds   <- n_distinct(tracks$birdID)
   n_tracks1 <- n_distinct(tracks$tripID)
   
   # which trips are short
@@ -113,82 +108,31 @@ for(i in seq_along(tfiles)){
     TD$Longitude <- ifelse(TD$Longitude<0, TD$Longitude+360, TD$Longitude)
   }
   # project tracks to data-centered projection
-  TD <- projectTracks(TD, projType = "azim", custom=T) # equal area azimuthal proj
-  
-  
-  if(htype == "mag"){
-    h <- mean(na.omit(allhvals[allhvals$scientific_name == asp, ]$mag))
-  } else if(htype == "href1"){
-    h <- mean(na.omit(allhvals[allhvals$scientific_name == asp, ]$href_f))
-  } else if(htype == "href2"){
-    h <- mean(na.omit(allhvals[allhvals$scientific_name == asp, ]$href_2))
-  } else if(htype == "sqrt2"){
-    h <- mean(na.omit(allhvals[allhvals$scientific_name == asp, ]$sqrt_half))
-  }
-  
-  ## estimate individual UDs ## -----------------------------------------------
-  cres <- 1 ## cell resoluation (kmXkm)
-  UD <- estSpaceUse(TD, scale=h, polyOut=F)
-  
-  UDraster <- raster::stack(lapply(UD, function(x) {
-    raster::raster(as(x, "SpatialPixelsDataFrame"), values=TRUE)
-  } ))
+  TD <- track2KBA::projectTracks(TD, projType = "azim", custom=T) # equal area azimuthal proj
 
-  ## Save ## ------------------------------------------------------------------
-  outfolder <- paste0("data/analysis/ind_UDs/", stage, "/")
-  filename <- paste0(outfolder, paste(asp, asite, bstage, htype, sep = "_"), ".rds")
-  saveRDS(UDraster, filename)
-   
-  # ## view one trip and UD combo ##
-  # oneUD <- UDraster[[3]]
-  # oneTD <- subset(TD, ID == names(oneUD))
-  # mapview(oneTD) + mapview(oneUD)
-  # 
-  # outfolder <- paste0("figures/indUD_examples/", stage, "/")
-  # filename <- paste0(outfolder, paste(asp, asite, bstage, "map", sep = "_"), ".png")
-  # png(filename = filename)
-  #   raster::plot(oneUD)
-  #   sp::plot(oneTD, add=T)
-  # dev.off()
-  
-  ## reporting ##
-  if(comb_strips == T){
-    print(
-      paste(
-        n_tracks1, "trips",
-        "-->", n_tracks2, "cmbnd trax",
-        "-->", n_tracks3, ">10 pnt trax"))
-    
-    f_summ[[i]] <- data.frame( scientific_name = asp,
-                               n_trips = n_tracks1, n_ctrx = n_tracks2, n_ltrx = n_tracks3
-    )
-  } else {
-    print(
-      paste(
-        n_tracks1, "trips",
-        "-->", n_tracks3, ">10 pnt trax"))
-    
-    f_summ[[i]] <- data.frame( scientific_name = asp, n_birds = n_birds,
-                               n_trips = n_tracks1, n_ltrx = n_tracks3
-    )
-  }
+  center <- data.frame(x=mean(TD@coords[,1]), y=mean(TD@coords[,2]))
+  centroid_sp <- spTransform(
+    SpatialPoints(coordinates(center), proj4string = TD@proj4string), 
+    CRS("+proj=longlat +datum=WGS84"))
+  centroid_coords <- data.frame(
+    scientific_name=asp, site_name=asite, centroid_sp@coords) %>% 
+    rename(Latitude=y, Longitude=x)
+
+  centroid_list[[i]] <- centroid_coords
   
 }
-#)
 
-# meta$h <- do.call(rbind, hs)
-f_summ <- do.call(rbind, f_summ)
+centroids <- rbindlist(centroid_list)    
 
-fwrite(f_summ, "data/analysis/spp_nbirds_ntrx.csv")
+## Save ##
+saveRDS(centroids, "data/analysis/foraging_centroids.rds")
 
-# 
-# meta <- left_join(meta, f_summ)
-# 
-# fwrite(meta, "data/analysis/spp_parametersX.csv")
-# 
-# 
-# meta <- arrange(meta, med_max_dist)
-# plot(meta$med_max_dist)
-# plot(na.omit(meta$h))
-# ols <- lm(na.omit(meta$h) ~ seq_along(na.omit(meta$med_max_dist)))
-# abline(ols)
+## view on a map ##
+coordinates(centroids) <- ~Longitude + Latitude
+
+SpatialPoints(
+  coordinates(centroids[,c(3,4)]), 
+  proj4string = CRS("+proj=longlat +datum=WGS84")) %>% 
+  mapview::mapview()
+
+      

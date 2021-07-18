@@ -9,13 +9,17 @@ stage <- "chick_rearing"
 # stage <- "incubation"
 
 # htype <- "mag" #
-# htype <- "href1" # href, using smoothed values for outlier species
-htype <- "href2" # half of smoothed href
+htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "href2" # half of smoothed href
 
 yrudfolders     <- list.files(paste0(yrudfolder, stage), full.names = T)
 yrudfoldernames <- list.files(paste0(yrudfolder, stage), full.names = F)
 
 overs_list <- list()
+
+## select just a few that need running ##
+yrudfolders     <- yrudfolders[18:19]
+yrudfoldernames <- yrudfoldernames[18:19]
 
 for(i in seq_along(yrudfolders)){
   print(i)
@@ -23,6 +27,9 @@ for(i in seq_along(yrudfolders)){
   
   yruds <- lapply(seq_along(yrudfiles), function(x) raster(yrudfiles[x]))
 
+  sp      <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,1][i]
+  site    <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,2][i]
+  
   if(sp == "Sula leucogaster"){
     yrs   <- unlist(
       lapply(yruds, function(x) 
@@ -37,9 +44,6 @@ for(i in seq_along(yrudfolders)){
     )
   }
   
-  sp      <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,1][i]
-  site    <- do.call(rbind, str_split(yrudfoldernames, pattern="_"))[,2][i]
-
   pixArea <- res(yruds[[1]])[1]
   
   # calculate BA of full UDs

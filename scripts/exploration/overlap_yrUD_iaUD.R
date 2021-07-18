@@ -1,17 +1,22 @@
 ## Calculate overlap (BA) btwn yearly UD and full UD ## -----------------------
 pacman::p_load(dplyr, sp, sf, raster, ggplot2, stringr, data.table)
 
-## Data input ~~~~~~~~~~~~~~~~~~
-iaudfolder <- "data/analysis/interannual_UDs/"
-yrudfolder <- "data/analysis/yearly_UDs/"
-
 # analyze chick-rearing or incubation (or post-guard)
 stage <- "chick_rearing"
 # stage <- "incubation"
 
-htype <- "mag" #
+## use weighted or unweighted inter-annual distributions ## ------------------
+iatype <- "a"
+# iatype <- "w"
+
+## Data input ~~~~~~~~~~~~~~~~~~
+iaudfolder <- paste0("data/analysis/interannual_UDs_", iatype, "/")
+yrudfolder <- "data/analysis/yearly_UDs/"
+
+## choose smoothing parameter type to analyze ## -----------------------------
+# htype <- "mag" #
 # htype <- "href1" # href, using smoothed values for outlier species
-# htype <- "href2" # href, using smoothed values for outlier species
+htype <- "href2" # href, using smoothed values for outlier species
 
 iaudfiles     <- str_subset(list.files(paste0(iaudfolder, stage), full.names = T), pattern=fixed(htype))
 iaudfilenames <- str_subset(list.files(paste0(iaudfolder, stage), full.names = F), pattern=fixed(htype))
@@ -80,18 +85,18 @@ overs_df <- overs_df %>%
   filter(!is.na(n))
 
 ## Save ## 
-saveRDS(overs_df, paste0("data/analysis/overlap/overlap_yrUDs_iaUD_", htype, ".rds"))
+saveRDS(overs_df, paste0("data/analysis/overlap/overlap_yrUDs_iaUD", iatype, "_", htype, ".rds"))
 
 
 ## plot ## -------------------------------------------------------------------
-overs_df <- readRDS(paste0("data/analysis/overlap/overlap_yrUDs_iaUD_", htype, ".rds"))
+overs_df <- readRDS(paste0("data/analysis/overlap/overlap_yrUDs_iaUD", iatype,"_", htype, ".rds"))
 
 ggplot() + 
   geom_point(data=overs_df, aes(x=reorder(scientific_name, BA), y=BA)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
 
-ggsave(paste0("figures/overlap_yrUD_iaUD_", htype, ".png"), width=8, height=6)
+ggsave(paste0("figures/overlap_yrUD_iaUD", iatype, "_", htype, ".png"), width=8, height=6)
 
 ##
 ggplot() + 
