@@ -51,6 +51,7 @@ for(i in seq_along(yrudfolders)){
   yr_mtrx <- matrix(nrow=nyrs, ncol=nyrs , dimnames=list(yrs, yrs))
   
   for(x in seq_along(yruds)){
+    print(x)
     yrudx <- yruds[[x]]
     for(y in seq_along(yruds)){
       yrudy <- yruds[[y]]
