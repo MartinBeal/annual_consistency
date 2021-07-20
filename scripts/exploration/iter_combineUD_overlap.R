@@ -1,3 +1,42 @@
+### Average together individual UDs to create a pooled UD (within and across years) ###
+
+pacman::p_load(dplyr, sp, sf, raster, ggplot2, stringr, data.table)
+
+# my custom fxns for converting UDs to CDFs
+source("C:\\Users\\Martim Bill\\Documents\\R\\source_scripts\\UD_fxns.R")
+
+## Data input ~~~~~~~~~~~~~~~~~~
+udfolder <- "data/analysis/ind_UDs/"
+
+## use weighted or unweighted inter-annual distributions ## ------------------
+iatype <- "a"
+# iatype <- "w"
+
+# analyze chick-rearing or incubation (or post-guard)
+stage <- "chick_rearing"
+# stage <- "incubation"
+
+## which h-value data to use? ##
+# htype <- "mag" #
+htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "href2" # half of smoothed href
+
+## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
+n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
+## table w/ all bird and trip ids for selection ##
+allids <- fread(paste0("data/summaries/allids_", stage, ".csv"))
+## utilization distributions ##
+udfiles <- str_subset(list.files(paste0(udfolder, stage), full.names = T), pattern=fixed(htype))
+udfilenames <- str_subset(list.files(paste0(udfolder, stage), full.names = F), pattern=fixed(htype))
+
+
+thresh <- 9 # minimum # of birds needed per year for inclusion in analysis
+
+n_uds_list <- list()
+
+## 
+# udfiles     <- udfiles[15:16]
+# udfilenames <- udfilenames[15:16]
 
 #### 
 iterations <- 10
@@ -222,7 +261,7 @@ saveRDS(ia_overs,
 
 ### plot year-year overlap ## 
 
-# yr_overs <- readRDS("data/analysis/overlap/overlap_yrUDs_href1_10i.rds")
+yr_overs <- readRDS("data/analysis/overlap/overlap_yrUDs_href1_10i.rds")
 
 ggplot() + 
   geom_point(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA)) +
@@ -238,13 +277,38 @@ ggplot() +
 # stat_summary(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA), fun = mean, geom = "point") +
 # stat_summary(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA), fun.data=yr_overs$BA, fun = mean_se, geom = "errorbar")
 
-ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", ".png"), width=8, height=6)
+ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", ".png"), 
+       width=8, height=6)
+
+## Plot means and variation for each pairwise overlap comparison ## -----------
+yr_overs_summ <- yr_overs %>% 
+  group_by(scientific_name, site_name, paste(yr_x, yr_y)) %>% 
+  summarise(
+    mn_BA = mean(BA),
+    sd_BA = sd(BA),
+    sd_BA = ifelse(is.na(sd_BA), 0, sd_BA),
+    md_BA = median(BA)
+  )
+
+ggplot() + 
+  geom_pointrange(
+    data=yr_overs_summ, 
+    aes(x=reorder(scientific_name, md_BA, FUN="median"), 
+        y=mn_BA,
+        ymin=mn_BA-sd_BA, ymax=mn_BA+sd_BA),
+    size=.35, alpha=0.5,
+    position=position_jitter(width=.2)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
+
+ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", "_pntrange.png"), 
+       width=8, height=6)
 
 
 
 ### plot year-year overlap ## 
 
-# yr_overs <- readRDS("data/analysis/overlap/overlap_yrUDs_iaUDs_href1_10i.rds")
+ia_overs <- readRDS("data/analysis/overlap/overlap_yrUDs_iaUDa_href1_10i.rds")
 
 ggplot() + 
   geom_point(data=ia_overs, aes(x=reorder(scientific_name, BA), y=BA)) +
@@ -262,3 +326,27 @@ ggplot() +
 
 ggsave(paste0("figures/overlap_yrUDs_iaUDs", htype, "_", iterations, "i", ".png"), width=8, height=6)
 
+
+## Plot means and variation for each pairwise overlap comparison ## -----------
+ia_overs_summ <- ia_overs %>% 
+  group_by(scientific_name, site_name, season_year) %>% 
+  summarise(
+    mn_BA = mean(BA),
+    sd_BA = sd(BA),
+    sd_BA = ifelse(is.na(sd_BA), 0, sd_BA),
+    md_BA = median(BA)
+  )
+
+ggplot() + 
+  geom_pointrange(
+    data=ia_overs_summ, 
+    aes(x=reorder(scientific_name, md_BA, FUN="median"), 
+        y=mn_BA,
+        ymin=mn_BA-sd_BA, ymax=mn_BA+sd_BA),
+    size=.35, alpha=0.5,
+    position=position_jitter(width=.2)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
+
+ggsave(paste0("figures/overlap_yrUDs_iaUDs", htype, "_", iterations, "i", "_pntrange.png"), 
+       width=8, height=6)
