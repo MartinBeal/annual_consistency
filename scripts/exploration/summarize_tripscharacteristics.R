@@ -1,12 +1,17 @@
-## Summarise trip characteristics per species-site ## --------------------------
 
 ## Data input ~~~~~~~~~~~~~~~~~~
 tfolder <- "data/analysis/interpolated/"
 sfolder <- "data/analysis/trip_summary/"
 
+## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
+n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
+
 # analyze chick-rearing or incubation (or post-guard)
 stage <- "chick_rearing"
 # stage <- "incubation"
+
+## minimum # of birds per year to be included 
+thresh <- 9
 
 meta <- read.csv("data/analysis/spp_parameters.csv")
 
@@ -15,35 +20,57 @@ sfiles <- list.files(paste0(sfolder, stage), full.names = T)
 
 f_summ <- vector(mode="list", length(tfiles))
 
-all_tsumm <- vector(mode="list", length(tfiles))
+all_tsumm_list <- vector(mode="list", length(tfiles))
 
 for(i in seq_along(tfiles)){
+  print(i)
   tsumm   <- readRDS(sfiles[i])
   tracks  <- readRDS(tfiles[i])
   
   tsumm   <- rename(tsumm, birdID = ID)
   tracks  <- rename(tracks, birdID = ID)
   
-  sp      <- tracks$scientific_name[1]
-  site    <- tracks$site_name[1]
+  asp      <- tracks$scientific_name[1]
+  asite    <- tracks$site_name[1]
   bstage  <- tracks$breed_stage[1]
+  
+  onessize <- n_trx[n_trx$sp==asp & n_trx$site==asite, ]
+  
+  if(onessize$n_yrs_10<3){
+    print(paste(asp, "doesnt have enough years")); next}
   
   tsumm <- tracks %>% group_by(birdID, tripID) %>% summarise(n_locs_i = n()) %>% 
     left_join(tsumm, by=c("birdID", "tripID")) %>% 
     mutate(
-      scientific_name = sp,
-      site_name       = site,
+      scientific_name = asp,
+      site_name       = asite,
       breed_stage     = bstage)
   # tsumm <- mutate(tsumm,
   #                 scientific_name = sp,
   #                 site_name       = site,
   #                 breed_stage     = bstage)
-  all_tsumm[[i]] <- tsumm
+  all_tsumm_list[[i]] <- tsumm
 }
 
-all_tsumm <- data.table::rbindlist(all_tsumm) %>% filter(tripID != "-1") 
+all_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") %>% 
+  mutate(season_year = year(departure))
 
-spsi_summ <- all_tsumm %>% group_by(scientific_name, site_name) %>% summarise(
+
+## Select one trip per bird for calculating average trip characteristics ##----
+onet_tsumm <- all_tsumm %>% group_by(season_year, birdID) %>% 
+  slice_sample(n=1)
+
+sel_yrs <- onet_tsumm %>% group_by(scientific_name, site_name, season_year) %>% 
+  summarise(n_birds=n_distinct(birdID)) %>% 
+  filter(n_birds > thresh)
+
+## Keep only ids from yrs meeting criteria ##
+onet_tsumm <- filter(onet_tsumm, season_year %in% onet_tsumm$season_year)
+
+## across years ## ------------------------------------------------------------
+spsi_summ <- onet_tsumm %>% 
+  group_by(scientific_name, site_name) %>% 
+  summarise(
     mn_nlocsi   = mean(n_locs_i),
     q10_duration = quantile(duration, .1),
     q25_duration = quantile(duration, .25),
@@ -54,50 +81,30 @@ spsi_summ <- all_tsumm %>% group_by(scientific_name, site_name) %>% summarise(
     q75_mdist = quantile(max_dist, .75),
     md_mdist = median(max_dist),
   )
-View(spsi_summ)
-
-spsi_summ <- arrange(spsi_summ, prop_dur_int)
-
-plot(spsi_summ$prop_dur_int)
-plot(sqrt(spsi_summ$prop_dur_int))
-plot(log(spsi_summ$prop_dur_int))
-
-plot(spsi_summ$md_duration, spsi_summ$prop_dur_int)
 
 
 ### Trip characteristics by year ###
-
-all_tsumm <- all_tsumm %>% 
+onet_tsumm <- onet_tsumm %>% 
   mutate(
     season_year = ifelse(month(departure) %in% c(1,2,3), year(departure) - 1, year(departure))
   )
-spsi_y_summ <- all_tsumm %>% group_by(scientific_name, site_name, season_year) %>% summarise(
-  mn_nlocsi    = mean(n_locs_i),
-  md_duration  = median(duration),
-  iqr_duration = IQR(duration),
-  prop_dur_int = 0.5 / md_duration,
-  md_max_dist  = median(max_dist),
-  iqr_max_dist = IQR(max_dist),
-  md_tot_dist  = median(total_dist),
-  iqr_tot_dist = IQR(total_dist)
-)
+
+spsi_y_summ <- onet_tsumm %>% 
+  mutate(season_year = as.character(season_year)) %>% 
+  group_by(scientific_name, site_name, season_year) %>% 
+  summarise(
+    n_tracks     = n_distinct(birdID),
+    mn_nlocsi    = mean(n_locs_i),
+    md_duration  = median(duration),
+    iqr_duration = IQR(duration),
+    prop_dur_int = 0.5 / md_duration,
+    md_max_dist  = median(max_dist),
+    iqr_max_dist = IQR(max_dist),
+    md_tot_dist  = median(total_dist),
+    iqr_tot_dist = IQR(total_dist)
+  )
 
 
-
-### plot ### ----------------------------------------
-## Duration - overall species comparison ##
-ggplot() + 
-  # geom_errorbar(data=spsi_summ,
-  #               aes(scientific_name,
-  #                   ymin=q25_duration,
-  #                   ymax=q75_duration)) +
-  geom_boxplot(data=all_tsumm, aes(scientific_name, duration)) +
-  # geom_point(data=spsi_summ, aes(scientific_name, md_duration)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-  ylab("Median trip duration (h) ") + xlab("") +
-  guides(color=FALSE)
-
-ggsave("figures/trip_duration_alpha.png", width=8, height=6)
 
 ## Yearly variation ##
 ggplot() + 
@@ -107,26 +114,9 @@ ggplot() +
                     ymax=md_max_dist+iqr_max_dist, color=site_name)) +
   geom_point(data=spsi_y_summ, aes(season_year, md_max_dist, color=site_name)) +
   facet_wrap(~scientific_name, scales = "free") +
-  guides(color=FALSE)
+  guides(color="none") + ylab("Foraging range (km)") + xlab("Year")
 
-ggsave("figures/trip_maxdist_byyear.png", width=9, height=6)
+ggsave("figures/trip_maxdist_byyearspp.png", width=9, height=6)
 
-## Foraging range ## 
-ggplot() + 
-  geom_point(data=spsi_summ, 
-             aes(reorder(scientific_name, md_mdist), 
-                 y=md_mdist)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylab("Median foraging range (km)") + xlab("") 
 
-ggsave("figures/trip_maxdist.png", width=8, height=6)
-
-ggplot() + 
-  geom_point(data=spsi_summ, 
-             aes(reorder(scientific_name, md_mdist), 
-                 y=log(md_mdist))) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylab("Smoothinh paramater (km)") + xlab("")
-
-ggsave("figures/smoothing_parameter.png", width=8, height=6)
-
+## Test repeatability of foraging range within vs. across yrs for each sp ## 

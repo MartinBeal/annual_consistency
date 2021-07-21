@@ -4,8 +4,8 @@
 # year vs. reference dist (ia) and year vs. year calculation (yr)
 #------------------------------------------------------------------------------#
 
-htype <- "mag" #
-# htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "mag" #
+htype <- "href1" # href, using smoothed values for outlier species
 # htype <- "href2" # href, using smoothed values for outlier species
 
 ## load ## 
@@ -23,7 +23,7 @@ ia <- ia %>% left_join(spp_alpha) %>%
   )
 yr <- yr %>% left_join(spp_alpha) %>%
   mutate(
-    sp_rank = as.numeric(reorder(scientific_name, BA), FUN="mean")
+    sp_rank = as.numeric(reorder(scientific_name, BA, FUN="mean"))
   )
 
 ia_rnks <- ia %>% group_by(scientific_name) %>% 

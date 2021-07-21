@@ -20,6 +20,7 @@ ovrs <- readRDS("data/analysis/overlap/overlap_yrUDs_href1_10i.rds")
 
 ovrs
 
+
 ## Aggregate across iterations ## ---------------------------------------------
 ovrs <- ovrs %>% 
   group_by(scientific_name, site_name, yrs=paste(yr_x, yr_y, sep="-")) %>% 
@@ -31,6 +32,7 @@ ovrs <- ovrs %>%
     sd_BA = ifelse(is.na(sd_BA), 0, sd_BA),
     md_BA = median(BA)
   )
+
 
 ### Taxonomic family ### ------------------------------------------------------
 
@@ -57,6 +59,7 @@ ggplot() +
 
 ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", "_families_boxplot.png"), 
        width=8, height=6)
+
 
 ### Number of years ### ------------------------------------------------------
 
@@ -94,6 +97,7 @@ ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i",
 aov_r <- aov(ovrs$mn_BA ~ ovrs$n_yr_comp_grp)
 anova(aov_r)
 
+
 ### Smoothing parameter ### ------------------------------------------------------
 if(htype=="mag"){
   ovrs <- ovrs %>% left_join(allhvals[, c("scientific_name", "mag")]) %>%
@@ -107,9 +111,18 @@ if(htype=="mag"){
 }
 
 ggplot() +
-  geom_point(data=ovrs, aes(x=h, y=mn_BA)) +
+  geom_pointrange(
+    data=ovrs, 
+    aes(x=h, y=mn_BA, 
+        ymin=mn_BA-sd_BA, ymax=mn_BA+sd_BA),
+    position=position_jitter(width=.2),
+    size=.35, alpha=0.5) +
   ylab("Overlap (BA)") + xlab("Smoothing parameter (km)") + 
   ylim(c(0,1))
+
+ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", 
+              "_hval_errorbars.png"), 
+       width=8, height=6)
 
 cor.test(ovrs$mn_BA, ovrs$h)
 
@@ -131,7 +144,7 @@ ggplot() +
   ylim(c(0,1))
 
 ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", 
-              "_hval_errorbars.png"), 
+              "_hval_errorbars_agg.png"), 
        width=8, height=6)
 
 ## filter out 'outlier' diving petrel ##
@@ -145,6 +158,7 @@ agg_ovrs %>% filter(scientific_name != "Pelecanoides urinatrix") %>% ggplot() +
 
 xx <- ovrs %>% filter(scientific_name != "Pelecanoides urinatrix")
 cor.test(xx$mn_BA, xx$h)
+
 
 ### Sample size (sum minus difference in n btwn each year) ### -----------------
 n_uds <- data.table::fread("data/summaries/n_trips_birds_KDEs_yr.csv") ## metadata table 
@@ -174,9 +188,29 @@ ggplot() +
   ylab("Overlap (BA)") + xlab("Pairwise sample size (sum of birds)") + 
   ylim(0,1) + xlim(0,150)
 
+# ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", 
+#               "_sampsize_bysp.png"), 
+#        width=9, height=6)
+
+## showing variation per comparison (from iterating trips)
+ggplot() + geom_pointrange(
+  data=ovrs, 
+  aes(x=n_sum, y=mn_BA,
+      ymin=mn_BA-sd_BA, ymax=mn_BA+sd_BA),
+  size=.2, alpha=0.35,
+  position=position_jitter(width=.2)) +
+  ylab("Overlap (BA)") + xlab("Pairwise sample size (sum of birds)") + 
+  ylim(0,1) + xlim(0,150) + facet_wrap(~scientific_name)
+
 ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", 
               "_sampsize_bysp.png"), 
        width=9, height=6)
+
+## Is degree of variability in pairwise overlap associated with sample size?
+ggplot() + geom_point(
+  data=ovrs, 
+  aes(x=n_sum, y=sd_BA)) + facet_wrap(~scientific_name) +
+  ylab("Variability (SD of mean BA)") + xlab("Pairwise sample size (sum of birds)") + xlim(0,150)
 
 
 ## Foraging dist. latitude ## -------------------------------------------------
@@ -213,7 +247,19 @@ ggplot() +
   geom_point(data=agg_ovrs, aes(x=forage_lat, y=mn_mn_BA)) +
   geom_vline(xintercept=23.5, color="dark red", linetype="dashed") +
   ylab("Overlap (BA)") + xlab("Foraging latitude (abs)") + 
-  ylim(0,1) + xlim(3,65)
+  ylim(0,1) + xlim(3,65) + 
+  ggrepel::geom_text_repel(data=subset(agg_ovrs, forage_lat < 25),
+                            aes(x=forage_lat, y=mn_mn_BA, 
+                                label = scientific_name),
+                            box.padding   = 1, 
+                            point.padding = 1.5,
+                            segment.color = 'grey50') +
+  ggrepel::geom_text_repel(data=subset(agg_ovrs, forage_lat >58),
+                           aes(x=forage_lat, y=mn_mn_BA, 
+                               label = scientific_name),
+                           box.padding   = 1, 
+                           point.padding = 1.5,
+                           segment.color = 'grey50') 
 
 ggsave(paste0("figures/overlap_yrUDs_", htype, "_", iterations, "i", 
               "_foragelat_errorbars.png"), 
