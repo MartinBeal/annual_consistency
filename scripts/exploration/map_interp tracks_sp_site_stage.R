@@ -1,5 +1,5 @@
 ## Map yearly tracking samples after interpolation ## -------------------------
-pacman::p_load(sf, mapview, ggplot2)
+pacman::p_load(sf, dplyr, lubridate, mapview, ggplot2)
 
 tfolder <- "data/analysis/interpolated/"
 
@@ -7,7 +7,7 @@ stage <- "chick_rearing"
 
 tfiles <- list.files(paste0(tfolder, stage), full.names = T)
 
-tfiles <- tfiles[15:16]
+tfiles <- tfiles[14]
 
 lapply(seq_along(tfiles), function(x){
   
@@ -16,7 +16,10 @@ lapply(seq_along(tfiles), function(x){
   if("season_year" %in% colnames(tracks)){
     years <- unique(tracks$season_year)
     tracks$year <- tracks$season_year
-  } else { years <- unique(tracks$year) }
+  } else { 
+    tracks$year <- lubridate::year(tracks$DateTime)
+    years <- unique(tracks$year) 
+  }
   
   if( min(tracks$Longitude) < -170 &  max(tracks$Longitude) > 170 ) {
     tracks$Longitude <- ifelse(tracks$Longitude<0, tracks$Longitude+360, tracks$Longitude)

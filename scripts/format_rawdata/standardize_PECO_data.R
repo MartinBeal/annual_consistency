@@ -48,6 +48,7 @@ tracksSP <- SpatialPointsDataFrame(
     data.frame(rawdata$longitude, rawdata$latitude),
     proj4string=CRS("+proj=longlat +datum=WGS84")),
   data=rawdata)
+
 tracksSP <- tracksSP[is.na(over(tracksSP, bbox)), ] # keep only points outside bbox
 rawdata  <- tracksSP[is.na(over(tracksSP, bbox2)), ]@data # keep only points outside bbox
 

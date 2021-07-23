@@ -34,7 +34,7 @@ years <- unique(tracks$season_year)
 # ss_summ <- BBAL_BI_summ %>% filter(year %in% years) # Bempton
 # ss_summ <- BRBO_summ %>% filter(season_year %in% years) # dog island
 # ss_summ <- NOGA_summ %>% filter(year %in% years) # bass rock (east lothian)
-# ss_summ <- PECO_summ %>% filter(year %in% years) # bass rock (east lothian)
+ss_summ <- PECO_summ %>% filter(year %in% years) # bass rock (east lothian)
 # ss_summ <- EUSH_summ %>% filter(year %in% years) # bass rock (east lothian)
 
 # years <- unique(tracks$season_year)
@@ -52,7 +52,7 @@ years <- unique(tracks$season_year)
 # ss_summ <- BBAL_BI_summ %>% filter(season_year %in% years & breed_stage == "incubation")
 # ss_summ <- GHAL_summ %>% filter(season_year %in% years & breed_stage == "brood-guard")
 # ss_summ <- BFAL_summ %>% filter(season_year %in% years)
-ss_summ <- LAAL_summ %>% filter(season_year %in% years)
+# ss_summ <- LAAL_summ %>% filter(season_year %in% years)
 
 # ss_summ <- WEPE_IN_summ %>% filter(year %in% years)
 # ss_summ <- KIPE_summ %>% filter(breed_stage == "brood-guard" & season_year %in% years)

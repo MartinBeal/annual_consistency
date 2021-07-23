@@ -57,7 +57,7 @@ all_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") %>%
 
 
 ## Select one trip per bird for calculating average trip characteristics ##----
-onet_tsumm <- all_tsumm %>% group_by(season_year, birdID) %>% 
+onet_tsumm <- all_tsumm %>% group_by(scientific_name, season_year, birdID) %>% 
   slice_sample(n=1)
 
 sel_yrs <- onet_tsumm %>% group_by(scientific_name, site_name, season_year) %>% 
@@ -65,7 +65,7 @@ sel_yrs <- onet_tsumm %>% group_by(scientific_name, site_name, season_year) %>%
   filter(n_birds > thresh)
 
 ## Keep only ids from yrs meeting criteria ##
-onet_tsumm <- filter(onet_tsumm, season_year %in% onet_tsumm$season_year)
+onet_tsumm <- filter(onet_tsumm, season_year %in% sel_yrs$season_year)
 
 ## across years ## ------------------------------------------------------------
 spsi_summ <- onet_tsumm %>% 
@@ -116,7 +116,59 @@ ggplot() +
   facet_wrap(~scientific_name, scales = "free") +
   guides(color="none") + ylab("Foraging range (km)") + xlab("Year")
 
-ggsave("figures/trip_maxdist_byyearspp.png", width=9, height=6)
+ggsave("figures/trip_maxdist_byyearspp_onetrip.png", width=9, height=6)
 
 
 ## Test repeatability of foraging range within vs. across yrs for each sp ## 
+library(rptR)
+
+
+
+mdout <- rpt(max_dist ~ colony + (1 | ID), grname = "ID", data = trip_sum, datatype = "Gaussian", 
+             nboot = 1000, npermut = 100)
+
+
+
+mdout1 <- rpt(md_max_dist ~ scientific_name + (1 | season_year), 
+             grname = "season_year", data = spsi_y_summ, datatype = "Gaussian", 
+             nboot = 1000, npermut = 100)
+
+
+
+mdout2 <- rpt(max_dist ~ (1 | scientific_name) + (1 | season_year) + (1 | birdID), 
+             grname = c("scientific_name", "season_year"), data = onet_tsumm, datatype = "Gaussian", 
+             nboot = 0, npermut = 0)
+
+# Calculating R for each species separately #
+n_spp <- n_distinct(onet_tsumm$scientific_name)
+models_list <- vector("list", n_spp)
+for(i in seq_len(n_spp)){
+  print(i)
+  
+  onesp <- onet_tsumm %>% 
+    filter(scientific_name == unique(onet_tsumm$scientific_name)[i])
+  table(onesp$birdID)
+  mdout <- rpt(max_dist ~ (1 | season_year), 
+                grname = "season_year", data = onesp, datatype = "Gaussian", 
+                nboot = 1000, npermut = 100)
+  
+  models_list[[i]] <- mdout
+  
+}
+
+rvals <- do.call(rbind, lapply(models_list, function(x) x$R))
+se    <- do.call(rbind, lapply(models_list, function(x) x$se))
+
+rval_df <- data.frame(scientific_name = unique(onet_tsumm$scientific_name),
+                      rvals,
+                      se) %>% rename(R = season_year)
+
+ggplot() + 
+  geom_errorbar(data = rval_df, aes(x=reorder(scientific_name, R), y=R,
+                                   ymin = ifelse(R - se < 0, 0, R - se),
+                                   ymax = R + se)) +
+  geom_point(data=rval_df, aes(x=reorder(scientific_name, R), y=R)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Repeatabiliy") + xlab("") + ylim(c(0,1))
+
+ggsave("figures/trip_maxdist_repeatability_sepspmodels_onetrip.png", width=8, height=6)
