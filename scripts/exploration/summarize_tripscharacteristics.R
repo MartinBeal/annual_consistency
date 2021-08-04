@@ -1,4 +1,6 @@
 
+pacman::p_load(dplyr, data.table)
+
 ## Data input ~~~~~~~~~~~~~~~~~~
 tfolder <- "data/analysis/interpolated/"
 sfolder <- "data/analysis/trip_summary/"

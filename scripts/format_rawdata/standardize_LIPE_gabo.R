@@ -13,8 +13,8 @@ onesp <- folders[which(spp=="LIPE")]
 
 
 ## choose a site ## ----------------------------------------------------------
-site <- "Gabo Island"
-# site <- "London Bridge"
+# site <- "Gabo Island"
+site <- "London Bridge"
 
 meta <- fread(paste0("data/raw_data/LIPE_gabo island and london bridge/LP Deployments 2011-2020 metadata for Martin_", site, ".csv")) %>% rename(deploy_t = "Time deployment (LT)", recover_t ="Time recovery (LT)") %>% mutate(
   deploy_t  = as.POSIXct(deploy_t, format="%d/%m/%Y %H:%M", tz="Australia/Victoria"),
@@ -47,7 +47,7 @@ rawdata <- data.table::rbindlist(
     deploy_ids <- tidyr::unite(
       as.data.frame(do.call(rbind, str_split(yrfilenames, pattern = "-"))[,1:3]), deploy_id, sep="-")
     
-    oneyr <- rbindlist(
+    oneyr <- do.call(rbind,
       lapply(seq_along(yrfiles), function(y){
         
         timezone <- str_detect(yrfilenames[y], pattern = "GMT")
@@ -96,7 +96,7 @@ rawdata <- data.table::rbindlist(
           ) %>% rename(latitude=Latitude, longitude=Longitude)
         }
         
-        one <- one %>% select(
+        one <- one %>% dplyr::select(
           bird_id, track_id, latitude, longitude, DateTime
         ) %>% mutate(
           latitude = as.numeric(latitude), longitude=as.numeric(longitude),
@@ -108,10 +108,10 @@ rawdata <- data.table::rbindlist(
         deploy_id <- deploy_ids$deploy_id[y]
         deploy <- subset(meta, ID == deploy_id)
         deploy
-        # summary(one$DateTime)
+        summary(one$DateTime)
         summary(with_tz(one$DateTime, tz="Australia/Victoria"))
         one$dt_tz <- with_tz(one$DateTime, tz="Australia/Victoria") # add local time for compar.
-        if(nrow(deploy) == 0) { 
+        if(nrow(deploy) == 0) {
           one$breed_stage <- rep(NA)
           return(one)
         } else { # if deployment times in meta use to filter
@@ -121,17 +121,19 @@ rawdata <- data.table::rbindlist(
           } else {onex <- one %>% filter((DateTime >= deploy$deploy_t))}
           ba <- round((b4 - nrow(onex))/b4*100, 1)
           ba
-          if(ba == 100) print(paste0(y, ": ", one$track_id[1], ": ", ba, "% of pnts removed")) else {
+          if(ba == 100) print(
+            paste0(y, ": ", one$track_id[1], ": ", ba, "% of pnts removed")
+            ) else {
             onex$breed_stage <- rep(deploy$`Breeding Stage`)
             return(onex)
           }
           ## add breed_stage info from meta ##
           # onex$dt_tz <- with_tz(onex$DateTime, tz="Australia/Victoria") # add local time for compar.
         }
-        return(oneyr)
+        # return(oneyr)
       }) 
     )
-    # print(colnames(oneyr))
+    return(oneyr)
   })) %>% mutate(
     scientific_name = "Eudyptula minor",
     site_name = site,
@@ -141,7 +143,8 @@ rawdata <- data.table::rbindlist(
     season_year = ifelse(month(DateTime) == 1, year(DateTime) - 1, year(DateTime)), ## combine data from same season crossing years
     month = month(DateTime),
     lat_colony = col_lat,
-    lon_colony = col_lon
+    lon_colony = col_lon,
+    bird_id = paste(bird_id, season_year, sep = "_")
   )
 
 sum(is.na(rawdata$DateTime ))
@@ -156,14 +159,27 @@ LIPE_summ <- rawdata %>%
   )
 LIPE_summ
 
-## filter to CHICK-REARING data ##------------------------------------
-goodyrs <- LIPE_summ$year[LIPE_summ$n_birds > 1]
+## filter to brood-guard data ##------------------------------------
 
-tracks <- rawdata %>% filter(breed_stage %in% c("brood-guard", "chick-rearing", "post-guard") & year %in% goodyrs)
+## remove data labelled as from "post-guard"
+rawdata_bg <- rawdata %>% filter(breed_stage != "post-guard")
+
+## summarise annual sample sizes ##
+LIPE_summ <- rawdata_bg %>% 
+  group_by(scientific_name, site_name, year, breed_stage) %>% 
+  summarise(
+    m_range = paste(month.abb[min(month)], month.abb[max(month)], sep = "-"),
+    n_birds  = n_distinct(bird_id)
+  )
+LIPE_summ
+
+goodyrs <- LIPE_summ$year[LIPE_summ$n_birds >= 9]
+
+tracks <- rawdata_bg %>% filter(breed_stage %in% c("brood-guard", "chick-rearing") & year %in% goodyrs)
 
 sp <- tracks$scientific_name[1]
 site <- tracks$site_name[1]
-stage <- "chick-rearing"
+stage <- "brood-guard"
 years <- paste(min(tracks$year), max(tracks$year), sep="-")
 nyrs <- paste0(n_distinct(tracks$year), "y")
 
@@ -174,3 +190,32 @@ filename
 saveRDS(tracks, paste0("C:/Users/Martim Bill/Documents/annual_consistency/data/analysis/all_TD/", filename))
 
 
+## filter to post-guard data ##------------------------------------
+
+## remove data labelled as from "post-guard"
+rawdata_pg <- rawdata %>% filter(breed_stage == "post-guard")
+
+## summarise annual sample sizes ##
+LIPE_summ <- rawdata_pg %>% 
+  group_by(scientific_name, site_name, year, breed_stage) %>% 
+  summarise(
+    m_range = paste(month.abb[min(month)], month.abb[max(month)], sep = "-"),
+    n_birds  = n_distinct(bird_id)
+  )
+LIPE_summ
+
+goodyrs <- LIPE_summ$year[LIPE_summ$n_birds >= 9]
+
+tracks <- rawdata_pg %>% filter(breed_stage %in% c("post-guard", "chick-rearing") & year %in% goodyrs)
+
+sp <- tracks$scientific_name[1]
+site <- tracks$site_name[1]
+stage <- "post-guard"
+years <- paste(min(tracks$year), max(tracks$year), sep="-")
+nyrs <- paste0(n_distinct(tracks$year), "y")
+
+filename <- paste0(paste(sp, site, stage, years, nyrs, sep = "_"), ".rds")
+filename
+
+# Save to analysis folder # 
+saveRDS(tracks, paste0("C:/Users/Martim Bill/Documents/annual_consistency/data/analysis/all_TD/", filename))

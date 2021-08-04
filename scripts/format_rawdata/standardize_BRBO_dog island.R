@@ -42,7 +42,7 @@ rawdata <- rbindlist(
   } )
 ) %>% mutate(
   season_year = paste(year, dep_month, sep="_"),
-  bird_id = paste0("BRBO_", ID, "_", year),
+  bird_id = paste0("BRBO_", ID, "_", season_year),
   scientific_name = "Sula leucogaster",
   site_name = "Dog Island",
   breed_stage = "chick-rearing",

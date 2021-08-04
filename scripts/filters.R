@@ -17,7 +17,8 @@ files      <- list.files(folder, full.names = T)
 
 ### Speed and duplicate filtering ### ------------------------------------------
  ## AND make bird_ids 'valid' ##
-files <- files[15:16]
+# files <- files[15:16]
+
 lapply(seq_along(files), function(x){
   one <- readRDS(files[x]) %>% arrange(bird_id, DateTime)
   print(paste((x), (one$scientific_name[1])))
@@ -47,7 +48,7 @@ lapply(seq_along(files), function(x){
   # cond <- speedfilter(tr, max.speed = maxspd, test = F)
   cond <- speedfilter(tr, max.speed = maxspd, test = T)
   # cond <- speedfilter(tr, max.speed = maxspd, test = F)
-  
+  hist(cond$speed)
   # which(cond==F)
   # tr$pass_speed <- cond               # point-to-point speed condition
   # tr$pass_speed <- cond$speed < 80    # point-to-point speed condition
@@ -127,7 +128,7 @@ ids_rmv <- lapply(seq_along(files), function(x) {
       rmNonTrip  = FALSE,
       nests=nests
     )
-    mapTrips(trips = trips, colony = colony, ID=50:62)
+    # mapTrips(trips = trips, colony = colony, ID=50:62)
     # mapTrips(trips = trips, colony = colony, colorBy = "trip")
     # subset(trips, ID=="BFAL_10") %>% mapview() # investigate
     # subset(trips, tripID=="P2_G403_17Jul2018_11") %>% mapview() # investigate
@@ -145,28 +146,61 @@ ids_rmv <- lapply(seq_along(files), function(x) {
     mean(sumTrips$duration)
     # hist(sumTrips$duration, 200, xlim=c(0,20))
     
+    ## filter out trips that were recorded X+ days after first trip ## ------
+    
+    sumTrips <- trips@data %>% group_by(ID, tripID, season_year) %>% summarise() %>% 
+      left_join(sumTrips)
+    
+    xx <- sumTrips %>% group_by(ID, season_year) %>% 
+      summarise(
+        n_trips = n_distinct(tripID),
+        min_dep = min(departure),
+        max_dep = max(departure),
+        time_diff = round(difftime(max_dep, min_dep, units = "days"), 1)
+      )
+    
+    hist(as.numeric(xx$time_diff))
+    View(filter(xx, time_diff > 14))
+    
+    ### filter out trips which are more than 14 days after first deployment on
+    ## an individual (in a season)
+    xxx <- xx %>% ungroup() %>% dplyr::select(-time_diff, -max_dep) %>% 
+      left_join(sumTrips, by = c("ID", "season_year")) %>% 
+      mutate(
+        time_firstdep = round(difftime(departure, min_dep, units = "days"), 1)
+      )
+    
+    trips2keep <- filter(xxx, time_firstdep < 14)$tripID
+    
+    trips_f <- subset(trips, trips$tripID %in% trips2keep)
+    
     # trips@data %>% group_by(season_year) %>% summarise(n_distinct(ID))
     # trips@data %>% group_by(year) %>% summarise(n_distinct(ID))
     
     ## save ##
     # trip split tracks #
     outfolder <- paste0("data/analysis/trip_split/", stage, "/")
-    sp    <- trips$scientific_name[1]
-    site  <- trips$site_name[1]
+    sp    <- trips_f$scientific_name[1]
+    site  <- trips_f$site_name[1]
 
     filename <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
 
-    saveRDS(trips, filename)
+    saveRDS(trips_f, filename)
     # trip summary characteristics #
     outfolder <- paste0("data/analysis/trip_summary/", stage, "/")
 
     filename <- paste0(outfolder, paste(sp, site, bstage, sep = "_"), ".rds")
     
     saveRDS(sumTrips, filename)
+    
+    print(paste(
+      sp, ":", nrow(trips), "points before,", nrow(trips_f), "points after.")
+      )
     return(IDsb4-IDsAfter)
 }  )
 
 do.call(rbind, ids_rmv)
+
 
 ## summarise sampling rate ##--------------------------------------------------
 folder <- paste0("data/analysis/trip_split/", stage)
