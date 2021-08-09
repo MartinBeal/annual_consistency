@@ -22,6 +22,9 @@ sfiles <- list.files(paste0(sfolder, stage), full.names = T)
 
 f_summ <- vector(mode="list", length(tfiles))
 
+# tfiles <- tfiles[11]
+# sfiles <- sfiles[11]
+
 all_tsumm_list <- vector(mode="list", length(tfiles))
 
 for(i in seq_along(tfiles)){
@@ -54,8 +57,12 @@ for(i in seq_along(tfiles)){
   all_tsumm_list[[i]] <- tsumm
 }
 
-all_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") %>% 
-  mutate(season_year = year(departure))
+all_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") 
+
+if(!"season_year" %in% colnames(all_tsumm)){
+  all_tsumm <- all_tsumm %>% 
+    mutate(season_year = year(departure))
+}
 
 
 ## Select one trip per bird for calculating average trip characteristics ##----

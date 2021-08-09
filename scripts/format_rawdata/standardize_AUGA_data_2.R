@@ -134,7 +134,7 @@ rawdata <- data.table::rbindlist(
     return(one)
   }))
 
-nrow(rawdata[rawdata$year>2020, ])
+nrow(rawdata[rawdata$year > 2020, ])
 
 rawdata <- rawdata %>% mutate(
   scientific_name = rep("Morus serrator"),
@@ -219,13 +219,13 @@ if(bsite == "Pope's Eye"){
   AUGA_PD_summ <- AUGA_summ
 }
 
-## filter to CHICK-REARING data ##------------------------------------
-AUGA_CR_summ <- filter(AUGA_summ, breed_stage %in% c("brood-guard", "chick-rearing", "post-guard"))
+## filter to BR/CR data ##------------------------------------
+AUGA_CR_summ <- filter(AUGA_summ, breed_stage %in% c("brood-guard", "chick-rearing"))
 
 goodyrs <- AUGA_CR_summ$season_year[AUGA_CR_summ$n_birds > 5]
 
 tracks <- rawdata3 %>% 
-  filter(breed_stage %in% c("brood-guard", "chick-rearing", "post-guard") & season_year %in% goodyrs)
+  filter(breed_stage %in% c("brood-guard", "chick-rearing") & season_year %in% goodyrs)
 
 sp <- tracks$scientific_name[1]
 site <- tracks$site_name[1]
@@ -239,6 +239,25 @@ filename
 # Save to analysis folder # 
 saveRDS(tracks, paste0("C:/Users/Martim Bill/Documents/annual_consistency/data/analysis/all_TD/", filename))
 
+## filter to post-guard data ##------------------------------------
+AUGA_CR_summ <- filter(AUGA_summ, breed_stage %in% c("post-guard"))
+
+goodyrs <- AUGA_CR_summ$season_year[AUGA_CR_summ$n_birds > 5]
+
+tracks <- rawdata3 %>% 
+  filter(breed_stage %in% c("brood-guard", "chick-rearing") & season_year %in% goodyrs)
+
+sp <- tracks$scientific_name[1]
+site <- tracks$site_name[1]
+stage <- "post-guard"
+years <- paste(min(tracks$season_year), max(tracks$season_year), sep="-")
+nyrs <- paste0(n_distinct(tracks$season_year), "y")
+
+filename <- paste0(paste(sp, site, stage, years, nyrs, sep = "_"), ".rds")
+filename
+
+# Save to analysis folder # 
+saveRDS(tracks, paste0("C:/Users/Martim Bill/Documents/annual_consistency/data/analysis/all_TD/", filename))
 
 ## filter to INCUBATION data ##------------------------------------
 AUGA_IN_summ <- filter(AUGA_summ, breed_stage %in% c("incubation"))
