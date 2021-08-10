@@ -8,8 +8,8 @@ pacman::p_load(
 stage  <- "chick_rearing"
 # stage  <- "brood-guard
 
-datatype <- "raw"
-# datatype <- "interpolated"
+# datatype <- "raw"
+datatype <- "interpolated"
 
 if(datatype=="raw"){
   folder <- paste0("data/analysis/trip_split/", stage, "/")
@@ -61,20 +61,15 @@ for(i in seq_along(files)){
   }
   
   ## calculate step lengths and time steps ## ----------------------------------
-  steps <- tracks_amt %>% 
-    nest(data = c(x_, y_, t_)) %>% 
-    mutate( 
-      step_l = map(data, function(x){
-        step_lengths(x)
-      }),
-      ts = map(data, function(x){
-        c(NA, summarize_sampling_rate(x, time_unit="min", summarize=F))
-      }) ) %>% 
-    unnest(cols = c(step_l, ts, data)) %>% 
-    mutate(speed = step_l/ts)
-  
-  tracks_amt$step_l <- steps$step_l
-  tracks_amt$ts_min <- steps$ts
+  tracks_amt <- do.call(rbind,
+                        lapply(split(tracks_amt, tracks_amt$id), function(x){
+                          sl <- step_lengths(x)
+                          ts <- c(NA, summarize_sampling_rate(x, time_unit="min", summarize=F))
+                          result <- data.frame(x, step_l = sl, ts_min = ts)
+                          return(result)
+                        })
+  )
+  rownames(tracks_amt) <- c()
   
   timesteps <- tracks_amt %>% 
     summarise(
@@ -106,11 +101,11 @@ allhvals <- do.call(rbind, hr_dists)
 #                                                   "Ardenna tenuirostris"))
 
 ## Save ## 
-if(datatype=="raw"){
-  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
-} else{
-  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
-}
+# if(datatype=="raw"){
+#   saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
+# } else{
+#   saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
+# }
 
 View(allhvals)
 
@@ -134,15 +129,21 @@ ggsave("figures/smoothing_params_compare.png", width=8, height=6)
 
 
 ### fit line to href values to predict for outlier species ##
-allhvals_r <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
-allhvals_i <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
+allhvals_r <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds") %>% 
+  filter(!scientific_name %in% c("Aptenodytes patagonicus", "Ardenna tenuirostris"))
+# allhvals_i <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
+allhvals_i <- allhvals
 
 allhvals <- left_join(allhvals_r, allhvals_i, 
-                      by = c("scientific_name", "site_name", "med_max_dist", "mag", "sqrt_half")) %>% 
+                      by = c("scientific_name", "site_name")) %>% 
   rename(med_ts_r=med_ts.x, href_r=href.x, hr_dist_r=hr_dist.x,
+         hr_dist_r=hr_dist.x, med_max_dist_r=med_max_dist.x,
+         sqrt_half_r=sqrt_half.x, mag_r=mag.x,
          step_length_r = step_length.x, scaleARS_r = scaleARS.x,
          med_ts_i=med_ts.y, href_i=href.y, hr_dist_i=hr_dist.y,
-         step_length_i = step_length.y, scaleARS_i = scaleARS.y,)
+         med_max_dist_i=med_max_dist.y, sqrt_half_i=sqrt_half.y,
+         step_length_i = step_length.y, scaleARS_i = scaleARS.y,
+         mag_i=mag.y)
 
 ## Save ##
 # saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters.rds")
@@ -150,7 +151,7 @@ allhvals <- left_join(allhvals_r, allhvals_i,
 
 ## model selection ## -----------------------
 library(splines)
-allhvals <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
+# allhvals <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
 
 
 ## remove spp not analyzed cuz small n yrs ##
@@ -158,7 +159,7 @@ allhvals <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds
                                                   # "Ardenna tenuirostris"))
 
 
-allhvals$scientific_name <- reorder(allhvals$scientific_name, allhvals$med_max_dist)
+allhvals$scientific_name <- reorder(allhvals$scientific_name, allhvals$med_max_dist_r)
 
 allhvals$sp_num_id <- as.numeric(allhvals$scientific_name)
 
@@ -175,7 +176,7 @@ lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 
 AIC(fit1, fit2, fit3)
 
-outliers <- which(abs(resid(fit2))>10)
+outliers <- which(abs(resid(fit2))>5)
 
 # allhvals_b <- allhvals[-outliers, ]
 # 
@@ -225,24 +226,24 @@ points(hrefs[hrefs$outlier==T, ]$sp_num_id, hrefs[hrefs$outlier==T, ]$href_f, co
 lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 
 ## plot comparison ## -----------------------------------------------------
-hrefs <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
+# hrefs <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters.rds")
 
 
 ggplot() +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_2, color="href_2"), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=mag, color="mag"),  width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_i, color="href_i"), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=href_f, color="href_f"), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=scaleARS_i, color="scaleARS_i"), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist), y=sqrt_half, color="sqrt_half"), width = .1, height=0) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_2, color="href_2"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=mag_i, color="mag"),  width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_i, color="href_i"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_f, color="href_f"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=scaleARS_i, color="scaleARS_i"), width = .1, height=0) +
+  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=sqrt_half, color="sqrt_half"), width = .1, height=0) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
           legend.title = element_blank()) +
   ylab("Smoothing parameter (km)") + xlab("") +
   # scale_colour_manual(values = c("black", "red", "blue", "purple"))
   scale_colour_manual(values = c("black", "red", "light blue", "blue", "orange", "purple"))
 
-ggsave("figures/smoothing_params_compare.png", width=8, height=6)
-# ggsave("figures/smoothing_params_compare_all.png", width=8, height=6)
+# ggsave("figures/smoothing_params_compare.png", width=8, height=6)
+ggsave("figures/smoothing_params_compare_all.png", width=8, height=6)
 
 ## show 
-ggsave("figures/smoothing_params_compare_href_fit.png", width=8, height=6)
+# ggsave("figures/smoothing_params_compare_href_fit.png", width=8, height=6)
 
