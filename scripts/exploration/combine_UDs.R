@@ -23,7 +23,7 @@ htype <- "href1" # href, using smoothed values for outlier species
 
 ## table of sample sizes, use to filter to datasets meeting criteria for analysis ##
 n_trx <- fread(paste0("data/summaries/sp_site_nyears_Xtracks_", stage, ".csv"))
-## table w/ all bird and trip ids for selection ##
+## table w/ all bird and trip ids for selection (from filters.r) ##
 allids <- fread(paste0("data/summaries/allids_", stage, ".csv"))
 ## utilization distributions ##
 udfiles <- str_subset(list.files(paste0(udfolder, stage), full.names = T), pattern=fixed(htype))
@@ -35,8 +35,9 @@ thresh <- 9 # minimum # of birds needed per year for inclusion in analysis
 n_uds_list <- list()
 
 ## 
-# udfiles     <- udfiles[15:16]
-# udfilenames <- udfilenames[15:16]
+# udfiles     <- udfiles[18:25]
+# udfilenames <- udfilenames[18:25]
+
 tictoc::tic()
 
 for(i in seq_along(udfiles)){
@@ -113,7 +114,7 @@ for(i in seq_along(udfiles)){
     
     outfolder_iaa <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
     filename  <- paste0(outfolder_iaa, 
-                        paste(asp, site, bstage, htype, sep = "_"), ".tif")
+                        paste(asp, asite, bstage, htype, sep = "_"), ".tif")
     
     KDEinterann_a2 <- raster::calc(stack(yr_KDEs), filename = filename, mean,
                                    overwrite=TRUE)

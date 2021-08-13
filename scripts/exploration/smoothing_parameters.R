@@ -8,8 +8,8 @@ pacman::p_load(
 stage  <- "chick_rearing"
 # stage  <- "brood-guard
 
-# datatype <- "raw"
-datatype <- "interpolated"
+datatype <- "raw"
+# datatype <- "interpolated"
 
 if(datatype=="raw"){
   folder <- paste0("data/analysis/trip_split/", stage, "/")
@@ -96,16 +96,16 @@ for(i in seq_along(files)){
 
 allhvals <- do.call(rbind, hr_dists)
 
-## remove spp not analyzed cuz small n yrs ##
-# allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus", 
-#                                                   "Ardenna tenuirostris"))
+# remove spp not analyzed cuz small n yrs ##
+allhvals <- allhvals %>% filter(!scientific_name %in% c("Aptenodytes patagonicus",
+                                                  "Ardenna tenuirostris"))
 
-## Save ## 
-# if(datatype=="raw"){
-#   saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
-# } else{
-#   saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
-# }
+# Save ##
+if(datatype=="raw"){
+  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds")
+} else{
+  saveRDS(allhvals, "data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
+}
 
 View(allhvals)
 
@@ -131,8 +131,8 @@ ggsave("figures/smoothing_params_compare.png", width=8, height=6)
 ### fit line to href values to predict for outlier species ##
 allhvals_r <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_rawdata.rds") %>% 
   filter(!scientific_name %in% c("Aptenodytes patagonicus", "Ardenna tenuirostris"))
-# allhvals_i <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
-allhvals_i <- allhvals
+allhvals_i <- readRDS("data/analysis/smoothing_parameters/smoothing_parameters_interpolated.rds")
+# allhvals_i <- allhvals
 
 allhvals <- left_join(allhvals_r, allhvals_i, 
                       by = c("scientific_name", "site_name")) %>% 
@@ -232,17 +232,17 @@ lines(pred, predict(fit2, data.frame(sp_num_id=pred)), col='purple')
 ggplot() +
   geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_2, color="href_2"), width = .1, height=0) +
   geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=mag_i, color="mag"),  width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_i, color="href_i"), width = .1, height=0) +
+  # geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_i, color="href_i"), width = .1, height=0) +
   geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=href_f, color="href_f"), width = .1, height=0) +
-  geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=scaleARS_i, color="scaleARS_i"), width = .1, height=0) +
+  # geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=scaleARS_i, color="scaleARS_i"), width = .1, height=0) +
   geom_jitter(data=hrefs, aes(x=reorder(scientific_name, med_max_dist_r), y=sqrt_half, color="sqrt_half"), width = .1, height=0) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
           legend.title = element_blank()) +
   ylab("Smoothing parameter (km)") + xlab("") +
-  # scale_colour_manual(values = c("black", "red", "blue", "purple"))
-  scale_colour_manual(values = c("black", "red", "light blue", "blue", "orange", "purple"))
+  scale_colour_manual(values = c("black", "red", "blue", "purple"))
+  # scale_colour_manual(values = c("black", "red", "light blue", "blue", "orange", "purple"))
 
-# ggsave("figures/smoothing_params_compare.png", width=8, height=6)
-ggsave("figures/smoothing_params_compare_all.png", width=8, height=6)
+ggsave("figures/smoothing_params_compare.png", width=8, height=6)
+# ggsave("figures/smoothing_params_compare_all.png", width=8, height=6)
 
 ## show 
 # ggsave("figures/smoothing_params_compare_href_fit.png", width=8, height=6)

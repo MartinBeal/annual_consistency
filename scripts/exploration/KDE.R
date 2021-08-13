@@ -33,8 +33,8 @@ f_summ <- vector(mode="list", length(tfiles))
 ## 
 comb_strips <- FALSE
 
-# tfiles <- tfiles[5]
-# sfiles <- sfiles[5]
+tfiles <- tfiles[20:27]
+sfiles <- sfiles[20:27]
 
 for(i in seq_along(tfiles)){
   print(i)
@@ -128,7 +128,7 @@ for(i in seq_along(tfiles)){
   
   ## estimate individual UDs ## -----------------------------------------------
   cres <- 1 ## cell resoluation (kmXkm)
-  UD <- estSpaceUse(TD, scale=h, polyOut=F)
+  UD   <- estSpaceUse(TD, scale=h, polyOut=F)
   
   UDraster <- raster::stack(lapply(UD, function(x) {
     raster::raster(as(x, "SpatialPixelsDataFrame"), values=TRUE)

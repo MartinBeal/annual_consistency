@@ -14,13 +14,13 @@ htype <- "href2"
 ## individual UDs ## ----------------------------------------------------------
 folder <- "data/analysis/ind_UDs/"
 files <- list.files(paste0(folder, stage), pattern = fixed(htype), full.names = T)
-do.call(file.remove, list(files, full.names=T)))
+do.call(file.remove, list(files, full.names=T))
 do.call(file.remove, list(files[!str_detect(files, pattern = "href2")], full.names=T))
 
 ## interannual UDs ## ----------------------------------------------------------
 folder <- "data/analysis/interannual_UDs/"
 files <- list.files(paste0(folder, stage), pattern = fixed(htype), full.names = T)
-do.call(file.remove, list(files, full.names=T)))
+do.call(file.remove, list(files, full.names=T))
 # do.call(file.remove, list(files[!str_detect(files, pattern = "href2")], full.names=T))
 
 ## interannual HRs ## ----------------------------------------------------------

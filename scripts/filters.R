@@ -532,4 +532,5 @@ fwrite(allids, paste0("data/summaries/allids_", stage, ".csv"))
 summs2 <- summs %>% filter(n_birds > 9) %>% group_by(sp, site) %>% summarise(n_yrs_10 = n())
 summs3 <- summs %>% filter(n_birds > 5) %>% group_by(sp, site) %>% summarise(n_yrs_6 = n())
 summs4 <- left_join(summs3, summs2)
+
 fwrite(summs4, paste0("data/summaries/sp_site_nyears_Xtracks_", stage, "X.csv"))

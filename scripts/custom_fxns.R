@@ -1,7 +1,7 @@
 ## Custom fxns for annual consistency analysis ## -----------------------------
 
 ## custom function for calculating set of years to choose from for y=1 ##
-sample_y1 <- function(its, n_yr, yrly_ss){
+sample_y1 <- function(its, n_yr, yrly_ss, field_year){
   # what minimum of number of combinations needed to allow for equal probability when sampling years?
   even_combs <- its / n_yr
   
@@ -18,9 +18,9 @@ sample_y1 <- function(its, n_yr, yrly_ss){
     yrly_ss <- yrly_ss %>% mutate(weight = if_else(combs > even_combs, weight_hi, combs))
     yrly_ss
     
-    yr1_sample <- sample(yrly_ss$year, its, replace = T, prob=yrly_ss$weight)
+    yr1_sample <- sample(yrly_ss$season_year, its, replace = T, prob=yrly_ss$weight)
   } else {
-    yr1_sample <- sample(yrly_ss$year, its, replace = T)
+    yr1_sample <- sample(yrly_ss$season_year, its, replace = T)
   }
   
   return(yr1_sample)

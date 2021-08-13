@@ -1,5 +1,5 @@
 ### Average together individual UDs to create a pooled UD (within and across years) ###
-
+## and iterate to choose different trips each time
 pacman::p_load(dplyr, sp, sf, raster, ggplot2, stringr, data.table)
 
 # my custom fxns for converting UDs to CDFs
