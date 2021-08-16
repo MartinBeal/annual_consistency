@@ -5,7 +5,7 @@ pacman::p_load(dplyr, sp, sf, raster, ggplot2, stringr, data.table)
 source("C:\\Users\\Martim Bill\\Documents\\R\\source_scripts\\UD_fxns.R")
 
 ## Data input ~~~~~~~~~~~~~~~~~~
-iaudfolder <- "data/analysis/interannual_UDs/"
+iaudfolder <- "data/analysis/interannual_UDs_a/"
 yrudfolder <- "data/analysis/yearly_UDs/"
 
 ## table w/ all bird and trip ids for selection ##
@@ -17,8 +17,8 @@ stage <- "chick_rearing"
 
 ## which h-value data to use? ## --------------
 # htype <- "mag" #
-# htype <- "href1" # href, using smoothed values for outlier species
-htype <- "href2" # half of smoothed href
+htype <- "href1" # href, using smoothed values for outlier species
+# htype <- "href2" # half of smoothed href
 
 iaudfiles     <- str_subset(list.files(paste0(iaudfolder, stage), full.names = T), pattern=fixed(htype))
 iaudfilenames <- str_subset(list.files(paste0(iaudfolder, stage), full.names = F), pattern=fixed(htype))
@@ -64,19 +64,19 @@ for(i in seq_along(iaudfiles)){
   KDEia50_poly <- rgeos::gUnaryUnion(polys50) %>% st_as_sf() %>% mutate(level=50)
   
   ## Inter-annual ranges - 95% UD##
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/")
+  outfolder <- paste0("data/analysis/interannaul_HRs_a/", stage, "/raster/")
   filename  <- paste0(outfolder, paste(sp, site, bstage, htype, "95", sep = "_"), ".rds")
   saveRDS(KDEia95, filename)
   ## ...polygon
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/")
+  outfolder <- paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/")
   filename  <- paste0(outfolder, paste(sp, site, bstage, htype, "95", sep = "_"), ".rds")
   saveRDS(KDEia95_poly, filename)
   ## Inter-annual ranges - 50% UD ##
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/raster/")
+  outfolder <- paste0("data/analysis/interannaul_HRs_a/", stage, "/raster/")
   filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
   saveRDS(KDEia50, filename)
   ## ...polygon
-  outfolder <- paste0("data/analysis/interannaul_HRs/", stage, "/polygon/")
+  outfolder <- paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/")
   filename  <- paste0(outfolder, paste(sp, site, bstage, htype,"50", sep = "_"), ".rds")
   saveRDS(KDEia50_poly, filename)
   

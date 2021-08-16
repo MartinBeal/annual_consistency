@@ -19,11 +19,11 @@ htype <- "href1" # href, using smoothed values for outlier species
 str_subset(list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), pattern=fixed(htype))
 
 iaud50_files <- str_subset(
-  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), 
+  list.files(paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/"), 
              pattern = "50", full.names = T), 
   pattern=fixed(htype))
 iaud95_files <- str_subset(
-  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"),
+  list.files(paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/"),
              pattern = "95", full.names = T), 
   pattern=fixed(htype))
 yrud50_files <- str_subset(
@@ -36,10 +36,10 @@ yrud95_files <- str_subset(
   pattern=fixed(htype))
 
 iaud50_filenames <- str_subset(
-  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), 
+  list.files(paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/"), pattern = "50"), 
   pattern=fixed(htype))
 iaud95_filenames <- str_subset(
-  list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "95"), 
+  list.files(paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/"), pattern = "95"), 
   pattern=fixed(htype))
 yrud50_filenames <- str_subset(
   list.files(paste0("data/analysis/yearly_HRs/", stage, "/polygon/"), pattern = "50"), 
