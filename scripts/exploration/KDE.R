@@ -33,8 +33,8 @@ f_summ <- vector(mode="list", length(tfiles))
 ## 
 comb_strips <- FALSE
 
-tfiles <- tfiles[20:27]
-sfiles <- sfiles[20:27]
+tfiles <- tfiles[15:16]
+sfiles <- sfiles[15:16]
 
 for(i in seq_along(tfiles)){
   print(i)
@@ -125,10 +125,21 @@ for(i in seq_along(tfiles)){
   } else if(htype == "sqrt2"){
     h <- mean(na.omit(allhvals[allhvals$scientific_name == asp, ]$sqrt_half))
   }
+
+  ## Determine cell resolution for KDE ----------------------------------------
+  # i.e., 1000 cells for tracking data extent
+  extendX <- max(diff(range(coordinates(TD)[, 1])) * 0.05, h * 2000)
+  extendY <- max(diff(range(coordinates(TD)[, 2])) * 0.05, h * 2000)
   
+  minX <- min(coordinates(TD)[, 1]) - extendX
+  maxX <- max(coordinates(TD)[, 1]) + extendX
+  minY <- min(coordinates(TD)[, 2]) - extendY
+  maxY <- max(coordinates(TD)[, 2]) + extendY
+  
+  cres <- (max(abs(minX - maxX) / 1000, abs(minY - maxY) / 1000)) / 1000
+    
   ## estimate individual UDs ## -----------------------------------------------
-  cres <- 1 ## cell resoluation (kmXkm)
-  UD   <- estSpaceUse(TD, scale=h, polyOut=F)
+  UD  <- estSpaceUse(TD, scale=h, res = cres, polyOut=F)
   
   UDraster <- raster::stack(lapply(UD, function(x) {
     raster::raster(as(x, "SpatialPixelsDataFrame"), values=TRUE)
