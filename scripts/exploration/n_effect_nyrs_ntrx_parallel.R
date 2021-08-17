@@ -35,9 +35,9 @@ its <- 50    # how many times re-combine and iterate calculation?
 n_uds_list <- list()
 
 ##
-udfiles     <- udfiles[10]
-udfilenames <- udfilenames[10]
-iaudfiles   <- iaudfiles[10]
+# udfiles     <- udfiles[11:25]
+# udfilenames <- udfilenames[11:25]
+# iaudfiles   <- iaudfiles[11:25]
 
 avg_out_df_list <- vector("list", length(udfiles))
 
@@ -115,16 +115,16 @@ foreach(
   ## Calculate area of full sample's foraging area ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   pixArea <- res(KDEcmbn)[1]
   
-  # fullrange95 <- ud2iso(KDEcmbn, 95, simple = T)     # contour areas
-  # fullrange50 <- ud2iso(KDEcmbn, 50, simple = T)
+  fullrange95 <- ud2iso(KDEcmbn, 95, simple = T)     # contour areas
+  fullrange50 <- ud2iso(KDEcmbn, 50, simple = T)
   # # mapview::mapview(fullrange95, na.color = NA) + mapview::mapview(fullrange50, na.color = NA) 
   # 
-  # ncells <- sum(!is.na(raster::getValues(fullrange95)))
-  # area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-  # ncells <- sum(!is.na(raster::getValues(fullrange50)))
-  # area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-  # full_area <- c(area95, area50)
-  # full_area
+  ncells <- sum(!is.na(raster::getValues(fullrange95)))
+  area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+  ncells <- sum(!is.na(raster::getValues(fullrange50)))
+  area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+  full_area <- c(area95, area50)
+  full_area
   
   
   ### LOOP HERE 
@@ -133,6 +133,7 @@ foreach(
   minn <- min(yrly_ss$n_ids) # what is minimum single-year sample size?
   
   avg_out_list <- vector("list", length(seq_len(minn)))
+  its_out_list <- vector("list", length(seq_len(minn)))
   
   for(e in seq_len(minn)){
     print(paste("sample size:", e))
@@ -142,7 +143,10 @@ foreach(
     seq_n_yr_sample <- 1:n_yr
     
     # custom function for calculating set of years to choose from for y=1
+    # downweights years w/ sample size at minimum n (b/c few combinations)
     yr1_sample <- sample_y1(its, n_yr, yrly_ss, field_year = "season_year") 
+    ## even weights for all years
+    yr1_sample <- sample(yrly_ss$season_year, its, replace = T)
     
     output <- data.frame(
       n_trx  = e,
@@ -171,6 +175,7 @@ foreach(
           which_yrs <- sample(years, y)
         }  
         # sample a certain number of individuals from across a varying sample of years
+        # w/out replacement
         id_sample <- filter(KDEids, season_year %in% which_yrs) %>% 
           group_by(season_year) %>% 
           sample_n( ceiling( e/y ) ) %>% 
@@ -183,15 +188,15 @@ foreach(
         KDEset_cmbn <- raster::mean(KDEset)
         # mapview(KDEset_cmbn)
         
-        # KDEset_cdf95 <- ud2iso(KDEset_cmbn, levelUD = 95, simple = TRUE, outVal = NA)
-        # KDEset_cdf50 <- ud2iso(KDEset_cmbn, levelUD = 50, simple = TRUE, outVal = NA)
-        
+        KDEset_cdf95 <- ud2iso(KDEset_cmbn, levelUD = 95, simple = TRUE, outVal = NA)
+        KDEset_cdf50 <- ud2iso(KDEset_cmbn, levelUD = 50, simple = TRUE, outVal = NA)
+
         ## Calculate areas within isopleth contours ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # ncells <- sum(!is.na(raster::getValues(KDEset_cdf95)))
-        # area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-        # ncells <- sum(!is.na(raster::getValues(KDEset_cdf50)))
-        # area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-        # set_area <- c(area95, area50)
+        ncells <- sum(!is.na(raster::getValues(KDEset_cdf95)))
+        area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+        ncells <- sum(!is.na(raster::getValues(KDEset_cdf50)))
+        area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+        set_area <- c(area95, area50)
         
         ## Calculate overlap (BA) btwn sample area and full area ~~~~~~~~~~~~~~~~~~~~~~
         
@@ -219,8 +224,8 @@ foreach(
         output[(output$n_yrs) == y & (output$it) == k, ]$BAval    <- BAval
         # output[(output$n_yrs) == y & (output$it) == k, ]$BAval95  <- BAval95
         # output[(output$n_yrs) == y & (output$it) == k, ]$BAval50  <- BAval50
-        # output[(output$n_yrs) == y & (output$it) == k, ]$area95   <- area95
-        # output[(output$n_yrs) == y & (output$it) == k, ]$area50   <- area50
+        output[(output$n_yrs) == y & (output$it) == k, ]$area95   <- area95
+        output[(output$n_yrs) == y & (output$it) == k, ]$area50   <- area50
         # output[(output$n_yrs) == y & (output$it) == k, ]$perc_area95  <- (area95/full_area[1])*100
         # output[(output$n_yrs) == y & (output$it) == k, ]$perc_area50 <- (area50/full_area[2])*100
         
@@ -235,31 +240,37 @@ foreach(
       m_BA = mean(BAval),
       # m_BA95 = mean(BAval95),
       # m_BA50 = mean(BAval50),
-      # m_95 = mean(area95),
-      # m_50 = mean(area50),
+      m_95 = mean(area95),
+      m_50 = mean(area50),
       # m_perc_95 = mean(perc_area95),
       # m_perc_50 = mean(perc_area50),
       sd_BA = sd(BAval),
       # sd_BA95 = sd(BAval95),
       # sd_BA50 = sd(BAval50),
-      # sd_95 = sd(area95),
-      # sd_50 = sd(area50),
+      sd_95 = sd(area95),
+      sd_50 = sd(area50),
       # sd_perc_95 = sd(perc_area95),
       # sd_perc_50 = sd(perc_area50)
     )
     
     avg_out_list[[e]] <- avg_out
-    
+    its_out_list[[e]] <- output
   }
   
   avg_out_df <- data.table::rbindlist(avg_out_list)
-  avg_out_df_list[[i]] <- avg_out_df
   
-  filename <- paste0("data/analysis/n_effects/", asp, "_", asite, "_", "i", its, ".rds")
+  its_out_df <- data.table::rbindlist(its_out_list)
+  
+  ## SAVE ##
+  filename <- paste0("data/analysis/n_effects_avg/", asp, "_", asite, "_", "i", its, ".rds")
   saveRDS(avg_out_df, filename)
+  
+  filename <- paste0("data/analysis/n_effects_its/", asp, "_", asite, "_", "i", its, ".rds")
+  saveRDS(its_out_df, filename)
   
 }
 
 parallel::stopCluster(cl = cl)
 
 tictoc::toc()
+
