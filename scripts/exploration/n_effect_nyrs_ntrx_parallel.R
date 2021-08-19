@@ -1,4 +1,5 @@
-### Average together individual UDs to create a pooled UD (within and across years) ###
+### Simultaneously subsample and resample within and across years to compare 
+# effect of number of years and sample size on overlap (and area) measures
 
 pacman::p_load(dplyr, sp, sf, raster, ggplot2, stringr, data.table, doSNOW)
 
@@ -34,10 +35,11 @@ its <- 50    # how many times re-combine and iterate calculation?
 
 n_uds_list <- list()
 
-##
-# udfiles     <- udfiles[11:25]
-# udfilenames <- udfilenames[11:25]
-# iaudfiles   <- iaudfiles[11:25]
+
+## LOOP ! ---------------------------------------------------------------------
+udfiles     <- udfiles[2]
+udfilenames <- udfilenames[2]
+iaudfiles   <- iaudfiles[2]
 
 avg_out_df_list <- vector("list", length(udfiles))
 
@@ -45,12 +47,13 @@ tictoc::tic()
 
 registerDoSNOW(cl)
 
+nCores <- parallel::detectCores() - 1
 cl <- makeSOCKcluster(nCores)
 registerDoSNOW(cl)
-
+# registerDoSEQ()
 ntasks <- length(udfiles)
-pb <- tkProgressBar(max=ntasks)
-progress <- function(n) {setTkProgressBar(pb, n)}
+pb <- tcltk::tkProgressBar(max=ntasks)
+progress <- function(n) {tcltk::setTkProgressBar(pb, n)}
 opts <- list(progress=progress)
 
 foreach(
@@ -106,7 +109,7 @@ foreach(
     summarise(n_ids = n_distinct(bird_id)) %>% 
     mutate(combs = choose(n_ids, min(10)))
   
-  n <- length(KDEraster@layers) # total sample size
+  n <- length(KDEraster@layers) # total number of tracks (bird-trips)
   
   ## Get inter-annual (reference) distribution ## -----------------------------
   # KDEcmbn <- raster::mean(KDEraster) # OLD combined (averaged) UD (all birds)
@@ -160,8 +163,8 @@ foreach(
         BAval50  = rep(NA),
         area95 = rep(NA),
         area50 = rep(NA),
-        perc_area95 = rep(NA),
-        perc_area50 = rep(NA)
+        hr95_over = rep(NA),
+        hr50_over = rep(NA)
       ) %>% as.data.frame()
     
     for(y in seq_len(n_yr)){ # sample years 
@@ -174,60 +177,75 @@ foreach(
         } else {
           which_yrs <- sample(years, y)
         }  
-        # sample a certain number of individuals from across a varying sample of years
-        # w/out replacement
+
+        ## (orig) 1. Bootstrap birds: No repeat trips, but trips from same birds possible
+        # repeat w/in an iteration: birds: YES, trips: NO
+        # id_sample <- filter(KDEids, season_year %in% which_yrs) %>% 
+        #   group_by(season_year) %>% 
+        #   sample_n(ceiling(e / y)) %>% 
+        #   ungroup() %>% 
+        #   # sample_n( e ) %>%  # ensure the correct number is taken
+        #   dplyr::select(tripID) %>% arrange()
+        
+        #### 2. No repeat trips or individuals
+        # repeat w/in an iteration: birds: NO, trips: NO
         id_sample <- filter(KDEids, season_year %in% which_yrs) %>% 
+          group_by(bird_id) %>% 
+          sample_n(1) %>% 
           group_by(season_year) %>% 
-          sample_n( ceiling( e/y ) ) %>% 
+          sample_n(
+            ceiling(e / y), 
+            replace = F) %>% 
           ungroup() %>% 
-          sample_n( e ) %>%  # ensure the correct number is taken
-          dplyr::select(tripID)
+          # sample_n( e ) %>%  # ensure the correct number is taken
+          dplyr::select(tripID) %>% arrange(tripID)
         
         KDEset <- raster::subset(KDEraster, id_sample$tripID)
         
         KDEset_cmbn <- raster::mean(KDEset)
         # mapview(KDEset_cmbn)
-        
+  
+        ## Calculate simple overlap of contour areas btwn sample and ref dist ~
+        ## Sample CDF (isopleth) areas 
         KDEset_cdf95 <- ud2iso(KDEset_cmbn, levelUD = 95, simple = TRUE, outVal = NA)
         KDEset_cdf50 <- ud2iso(KDEset_cmbn, levelUD = 50, simple = TRUE, outVal = NA)
-
-        ## Calculate areas within isopleth contours ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        ncells <- sum(!is.na(raster::getValues(KDEset_cdf95)))
-        area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-        ncells <- sum(!is.na(raster::getValues(KDEset_cdf50)))
-        area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-        set_area <- c(area95, area50)
+        ## reference distribution CDF (isopleth) areas
+        KDEcmbn_95 <- ud2iso(KDEcmbn, levelUD = 95, simple = TRUE, outVal = NA)
+        KDEcmbn_50 <- ud2iso(KDEcmbn, levelUD = 50, simple = TRUE, outVal = NA)
         
-        ## Calculate overlap (BA) btwn sample area and full area ~~~~~~~~~~~~~~~~~~~~~~
+        xx95 <- brick(KDEcmbn_95, KDEset_cdf95)
+        xx50 <- brick(KDEcmbn_50, KDEset_cdf50)
         
-        # convert PDFs to binary rasters of within and outside levelUD area
-        #*cmbn objects rep. baseline data, *set objects are subsets 
-        # KDEcmbn_cdf95 <- ud2iso(KDEcmbn, levelUD = 95, simple = TRUE, outVal = 0)
-        # KDEcmbn_cdf50 <- ud2iso(KDEcmbn, levelUD = 50, simple = TRUE, outVal = 0)
+        xxx95 <- sum(xx95)
+        xxx50 <- sum(xx50)
         
-        # KDEset_cdf95 <- ud2iso(KDEset_cmbn, levelUD = 95, simple = TRUE, outVal = 0)
-        # KDEset_cdf50 <- ud2iso(KDEset_cmbn, levelUD = 50, simple = TRUE, outVal = 0)
-        # multiply binary mask by PDH for each level of baseline and subset data
-        # KDEcmbn_pdf95 <- KDEcmbn * KDEcmbn_cdf95
-        # KDEcmbn_pdf50 <- KDEcmbn * KDEcmbn_cdf50
-        # 
-        # KDEset_pdf95 <- KDEset_cmbn * KDEset_cdf95
-        # KDEset_pdf50 <- KDEset_cmbn * KDEset_cdf50
+        pixArea_brick <- res(xx95)[1]
         
-        # calculate 'conditional' BA (i.e. btwn UDs within certain % isopleth )
-        # BAval95 <- sum(sqrt(values(KDEcmbn_pdf95)) * sqrt(values(KDEset_pdf95))) * (pixArea^2)
-        # BAval50 <- sum(sqrt(values(KDEcmbn_pdf50)) * sqrt(values(KDEset_pdf50))) * (pixArea^2)
-        # calculate BA of full UDs
+        ia_ncells  <- sum(!is.na(raster::getValues(xx95[[1]])))
+        ia_area95  <- (ia_ncells * pixArea_brick^2) / (1000^2)  # area of range (sq.km)
+        ovr_ncells <- sum(!is.na(raster::getValues(xxx95)))
+        ovr_area95 <- (ovr_ncells * pixArea_brick^2) / (1000^2)  # area of range (sq.km)
+        
+        hr95_over <- ovr_area95/ia_area95
+        
+        ia_ncells  <- sum(!is.na(raster::getValues(xx50[[1]])))
+        ia_area50  <- (ia_ncells * pixArea_brick^2) / (1000^2)  # area of range (sq.km)
+        ovr_ncells <- sum(!is.na(raster::getValues(xxx50)))
+        ovr_area50 <- (ovr_ncells * pixArea_brick^2) / (1000^2)  # area of range (sq.km)
+        
+        hr50_over <- ovr_area50/ia_area50
+        
+        ## calculate BA of full UDs -------------------------------------------
         BAval <- sum(sqrt(values(KDEcmbn)) * sqrt(values(KDEset_cmbn))) * (pixArea^2)
         
         ## Save output
         output[(output$n_yrs) == y & (output$it) == k, ]$BAval    <- BAval
         # output[(output$n_yrs) == y & (output$it) == k, ]$BAval95  <- BAval95
         # output[(output$n_yrs) == y & (output$it) == k, ]$BAval50  <- BAval50
-        output[(output$n_yrs) == y & (output$it) == k, ]$area95   <- area95
-        output[(output$n_yrs) == y & (output$it) == k, ]$area50   <- area50
-        # output[(output$n_yrs) == y & (output$it) == k, ]$perc_area95  <- (area95/full_area[1])*100
-        # output[(output$n_yrs) == y & (output$it) == k, ]$perc_area50 <- (area50/full_area[2])*100
+        output[(output$n_yrs) == y & (output$it) == k, ]$area95   <- ovr_area95
+        output[(output$n_yrs) == y & (output$it) == k, ]$area50   <- ovr_area50
+        output[(output$n_yrs) == y & (output$it) == k, ]$hr95_over <- hr95_over
+        output[(output$n_yrs) == y & (output$it) == k, ]$hr50_over <- hr50_over
         
       }
       
@@ -242,15 +260,15 @@ foreach(
       # m_BA50 = mean(BAval50),
       m_95 = mean(area95),
       m_50 = mean(area50),
-      # m_perc_95 = mean(perc_area95),
-      # m_perc_50 = mean(perc_area50),
+      m_hr95 = mean(hr95_over),
+      m_hr50 = mean(hr50_over),
       sd_BA = sd(BAval),
       # sd_BA95 = sd(BAval95),
       # sd_BA50 = sd(BAval50),
       sd_95 = sd(area95),
       sd_50 = sd(area50),
-      # sd_perc_95 = sd(perc_area95),
-      # sd_perc_50 = sd(perc_area50)
+      sd_hr95 = sd(hr95_over),
+      sd_hr50 = sd(hr50_over)
     )
     
     avg_out_list[[e]] <- avg_out
@@ -273,4 +291,3 @@ foreach(
 parallel::stopCluster(cl = cl)
 
 tictoc::toc()
-

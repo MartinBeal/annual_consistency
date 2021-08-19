@@ -13,7 +13,7 @@ stage <- "chick_rearing"
 # stage <- "incubation"
 
 ## minimum # of birds per year to be included 
-thresh <- 9
+thresh <- 10
 
 meta <- read.csv("data/analysis/spp_parameters.csv")
 
@@ -44,6 +44,11 @@ for(i in seq_along(tfiles)){
   if(onessize$n_yrs_10<3){
     print(paste(asp, "doesnt have enough years")); next}
   
+  if(!"season_year" %in% colnames(all_tsumm)){
+    all_tsumm <- all_tsumm %>% 
+      mutate(season_year = year(departure))
+  }
+  
   tsumm <- tracks %>% group_by(birdID, tripID) %>% summarise(n_locs_i = n()) %>% 
     left_join(tsumm, by=c("birdID", "tripID")) %>% 
     mutate(
@@ -54,27 +59,36 @@ for(i in seq_along(tfiles)){
   #                 scientific_name = sp,
   #                 site_name       = site,
   #                 breed_stage     = bstage)
+  
+  ## only use years meeting threshold number of birds ## ----------------------
+  sel_yrs <- tsumm %>% group_by(scientific_name, site_name, season_year) %>% 
+    summarise(n_birds=n_distinct(birdID)) %>% 
+    filter(n_birds >= thresh)
+  
+  ## Keep only ids from yrs meeting criteria ##
+  tsumm <- filter(tsumm, season_year %in% sel_yrs$season_year)
+  
   all_tsumm_list[[i]] <- tsumm
 }
 
-all_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") 
+onet_tsumm <- rbindlist(all_tsumm_list) %>% filter(tripID != "-1") 
 
-if(!"season_year" %in% colnames(all_tsumm)){
-  all_tsumm <- all_tsumm %>% 
-    mutate(season_year = year(departure))
-}
+# if(!"season_year" %in% colnames(all_tsumm)){
+#   all_tsumm <- all_tsumm %>% 
+#     mutate(season_year = year(departure))
+# }
 
 
-## Select one trip per bird for calculating average trip characteristics ##----
-onet_tsumm <- all_tsumm %>% group_by(scientific_name, season_year, birdID) %>% 
-  slice_sample(n=1)
-
-sel_yrs <- onet_tsumm %>% group_by(scientific_name, site_name, season_year) %>% 
-  summarise(n_birds=n_distinct(birdID)) %>% 
-  filter(n_birds > thresh)
+# ## Select one trip per bird for calculating average trip characteristics ##----
+# onet_tsumm <- all_tsumm %>% group_by(scientific_name, season_year, birdID) %>% 
+#   slice_sample(n=1)
+# 
+# sel_yrs <- onet_tsumm %>% group_by(scientific_name, site_name, season_year) %>% 
+#   summarise(n_birds=n_distinct(birdID)) %>% 
+#   filter(n_birds > thresh)
 
 ## Keep only ids from yrs meeting criteria ##
-onet_tsumm <- filter(onet_tsumm, season_year %in% sel_yrs$season_year)
+# onet_tsumm <- filter(onet_tsumm, season_year %in% sel_yrs$season_year)
 
 ## across years ## ------------------------------------------------------------
 spsi_summ <- onet_tsumm %>% 
@@ -95,7 +109,7 @@ spsi_summ <- onet_tsumm %>%
 ### Trip characteristics by year ###
 onet_tsumm <- onet_tsumm %>% 
   mutate(
-    season_year = ifelse(month(departure) %in% c(1,2,3), year(departure) - 1, year(departure))
+    season_year = ifelse(month(departure) %in% c(1,2,3, 4), year(departure) - 1, year(departure))
   )
 
 spsi_y_summ <- onet_tsumm %>% 
@@ -112,7 +126,6 @@ spsi_y_summ <- onet_tsumm %>%
     md_tot_dist  = median(total_dist),
     iqr_tot_dist = IQR(total_dist)
   )
-
 
 
 ## Yearly variation ##
@@ -180,4 +193,4 @@ ggplot() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ylab("Repeatabiliy") + xlab("") + ylim(c(0,1))
 
-ggsave("figures/trip_maxdist_repeatability_sepspmodels_onetrip.png", width=8, height=6)
+# ggsave("figures/trip_maxdist_repeatability_sepspmodels_onetrip.png", width=8, height=6)

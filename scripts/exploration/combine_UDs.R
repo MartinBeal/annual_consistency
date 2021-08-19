@@ -30,13 +30,13 @@ udfiles <- str_subset(list.files(paste0(udfolder, stage), full.names = T), patte
 udfilenames <- str_subset(list.files(paste0(udfolder, stage), full.names = F), pattern=fixed(htype))
 
 
-thresh <- 9 # minimum # of birds needed per year for inclusion in analysis
+thresh <- 10 # minimum # of birds needed per year for inclusion in analysis
 
 n_uds_list <- list()
 
 ## 
-# udfiles     <- udfiles[18:25]
-# udfilenames <- udfilenames[18:25]
+udfiles     <- udfiles[14]
+udfilenames <- udfilenames[14]
 
 tictoc::tic()
 
@@ -66,7 +66,7 @@ for(i in seq_along(udfiles)){
   
   sel_yrs <- KDEids %>% group_by(season_year) %>% 
     summarise(n_birds=n_distinct(bird_id)) %>% 
-    filter(n_birds > thresh)
+    filter(n_birds >= thresh)
   if( nrow(sel_yrs)==0 ){
     print(paste(asp, "doesnt have enough trax per year")); next}
   
@@ -143,7 +143,7 @@ for(i in seq_along(udfiles)){
 }
 
 tictoc::toc(log=T)
-tic.log(format = TRUE)
+tictoc::tic.log(format = TRUE)
 
 tic.clearlog()
 

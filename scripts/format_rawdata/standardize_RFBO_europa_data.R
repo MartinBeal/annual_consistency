@@ -37,10 +37,10 @@ rawdata <- rbindlist(
       scientific_name = "Sula sula",
       site_name = "Europa Island",
       breed_stage = "chick-rearing",
-      bird_id = bird_id,
       track_id = rep(track_id),
       date_gmt = as.Date(Date, tryFormats = c("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d.%m.%Y")),
       year = ifelse(month(date_gmt) == 1, year(date_gmt) - 1, year(date_gmt)), ## combine data from same season crossing years
+      bird_id = paste(bird_id, year, sep="_"),
       month = month(date_gmt),
       lat_colony = -22.363080,
       lon_colony = 40.356229

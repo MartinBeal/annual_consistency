@@ -30,26 +30,27 @@ udfiles <- str_subset(list.files(paste0(udfolder, stage), full.names = T), patte
 udfilenames <- str_subset(list.files(paste0(udfolder, stage), full.names = F), pattern=fixed(htype))
 
 
-thresh <- 9 # minimum # of birds needed per year for inclusion in analysis
+thresh <- 10 # minimum # of birds needed per year for inclusion in analysis
 
 n_uds_list <- list()
 
 ## 
-# udfiles     <- udfiles[15:16]
-# udfilenames <- udfilenames[15:16]
+# udfiles     <- udfiles[25]
+# udfilenames <- udfilenames[25]
 
 #### 
 iterations <- 10
 
 yr_overs_mlist <- vector("list", length(udfiles))
 ia_overs_mlist <- vector("list", length(udfiles))
+KDEids_list    <- vector("list", length(udfiles))
 
 for(i in seq_along(udfiles)){
   print(paste("sp: ", i))
   KDEraster <- readRDS(udfiles[i])
   
   asp     <- do.call(rbind, str_split(udfilenames, pattern="_"))[,1][i]
-  asite    <- do.call(rbind, str_split(udfilenames, pattern="_"))[,2][i]
+  asite   <- do.call(rbind, str_split(udfilenames, pattern="_"))[,2][i]
   bstage  <- do.call(rbind, str_split(udfilenames, pattern="_"))[,3][i]
   
   onessize <- n_trx[n_trx$sp==asp & n_trx$site==asite, ]
@@ -68,9 +69,10 @@ for(i in seq_along(udfiles)){
   
   KDEids <- KDEids %>% left_join(tracksids, by=c("tripID", "bird_id"))
   
+  ## only use years meeting threshold number of birds ## ----------------------
   sel_yrs <- KDEids %>% group_by(season_year) %>% 
     summarise(n_birds=n_distinct(bird_id)) %>% 
-    filter(n_birds > thresh)
+    filter(n_birds >= thresh)
   if( nrow(sel_yrs)==0 ){
     print(paste(asp, "doesnt have enough trax per year")); next}
   
@@ -129,7 +131,7 @@ for(i in seq_along(udfiles)){
       KDEyr_a <- raster::calc(KDEselected_yr,
                               mean, filename = filename, overwrite=T) # arithmetic mean
       # raster::metadata(KDEyr_a) <- list(nrow(oneyr))
-      # writeRaster(KDEyr_a, filename = filename, overwrite=T)
+      writeRaster(KDEyr_a, filename = filename, overwrite=T)
       yrs_n_uds[[x]] <- data.frame(scientific_name = asp, 
                                    site_name = asite,
                                    breed_stage = bstage,
