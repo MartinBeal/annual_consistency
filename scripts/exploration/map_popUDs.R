@@ -16,7 +16,7 @@ stage <- "chick_rearing"
 htype <- "href1" # href, using smoothed values for outlier species
 # htype <- "href2" # half of smoothed href
 
-str_subset(list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), pattern=fixed(htype))
+# str_subset(list.files(paste0("data/analysis/interannaul_HRs/", stage, "/polygon/"), pattern = "50"), pattern=fixed(htype))
 
 iaud50_files <- str_subset(
   list.files(paste0("data/analysis/interannaul_HRs_a/", stage, "/polygon/"), 
@@ -100,7 +100,8 @@ for(i in seq_along(iaud50_files)){
   ## Save ##
   ggsave(paste0("figures/dist_maps_interannual/",
                 paste(sp, site, stage, htype, sep = "_"), ".png"), plot=iamap)
-  
+  # ggsave(paste0("figures/dist_maps_interannual/weighted/",
+  #               paste(sp, site, stage, htype, sep = "_"), ".png"), plot=iamap)
   ## map each yearly distribution ## ---------------------------------------
   yrs <- names(yrud95)
   yruds <- rbind(do.call(rbind, yrud95), do.call(rbind, yrud50)) %>% 

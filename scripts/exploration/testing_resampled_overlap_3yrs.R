@@ -207,35 +207,134 @@ it_all_long <- tidyr::pivot_longer(
 label_df <- it_all_long %>% 
   group_by(scientific_name, hr_over_type) %>%
   summarise(
-    n_trx   = min(n_trx),
+    n_trx   = ifelse(hr_over_type == "hr50_over", min(n_trx), NA),
     x_pos_n = first(sp_rank),
     y_pos_n = -0.01,
     x_pos_t50 = ifelse((hr50_over_t == T) & (hr_over_type == "hr50_over"), first(sp_rank), NA),
-    y_pos_t50 = ifelse((hr50_over_t == T) & (hr_over_type == "hr50_over"), 1.01, NA),
+    y_pos_t50 = ifelse((hr50_over_t == T) & (hr_over_type == "hr50_over"), 1.02, NA),
+    t50_diff  = ifelse((hr50_over_t == T) & (hr_over_type == "hr50_over"), round(first(hr50_mneff)*100, 0), NA),
     x_pos_t95 = ifelse((hr95_over_t == T) & (hr_over_type == "hr95_over"), first(sp_rank), NA),
-    y_pos_t95 = ifelse((hr95_over_t == T) & (hr_over_type == "hr95_over"), 1.01, NA)
+    y_pos_t95 = ifelse((hr95_over_t == T) & (hr_over_type == "hr95_over"), 1.02, NA),
+    t95_diff  = ifelse((hr50_over_t == T) & (hr_over_type == "hr95_over"), round(first(hr95_mneff)*100, 0), NA)
   ) %>% 
   mutate(
     hr_over_type = factor(hr_over_type, levels=c("hr95_over", "hr50_over"))
     ) #%>% 
   #filter(hr_over_type == "hr50_over") %>% 
 
+## facet labels 
+facet_labs <- c("95% area", "50% area")
+names(facet_labs) <- c("hr95_over", "hr50_over")
+
+
+## PLOT -------------------------------------------------------------
 ggplot() + 
   geom_boxplot(data=it_all_long, 
                aes(x=reorder(scientific_name, sp_rank), 
                    y=hr_over, fill=n_yrs), color = "black",
                outlier.size = .5) + 
-  scale_fill_manual(values = c("red", "grey30", "grey50", "grey70")) +
+  scale_fill_manual(values = c("red", "grey30", "grey55", "grey80")) +
   ylab("Overlap (BA)") + 
   ylab("% of HR covered") + 
   xlab("") + labs(fill="N years") +
   ylim(c(-0.01,1.02)) + 
   geom_text(data = label_df,   ## sample size label
-            aes(x=x_pos_n, y=y_pos_n, label = paste("n", n_trx)), size=3) +
+            aes(x=x_pos_n, y=y_pos_n, 
+                label = ifelse(is.na(n_trx), "", paste("n", n_trx))), 
+            size=3) +
+  # geom_text(data = label_df, ## anova significance label
+  #           aes(x=x_pos_t50, y_pos_t50), label = "*", size=6) +
+  # geom_text(data = label_df, ## anova significance label
+  #           aes(x=x_pos_t95, y_pos_t95), label = "*", size=6) +
   geom_text(data = label_df, ## anova significance label
-            aes(x=x_pos_t50, y_pos_t50), label = "*", size=6) +
+            aes(x=x_pos_t50, y_pos_t50, label = paste0(t50_diff, "%")), size=3) +
   geom_text(data = label_df, ## anova significance label
-            aes(x=x_pos_t95, y_pos_t95), label = "*", size=6) +
+            aes(x=x_pos_t95, y_pos_t95, label = paste0(t95_diff, "%")), size=3) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  facet_wrap(~hr_over_type, nrow=2)
+  facet_wrap(~hr_over_type, 
+             nrow=2, strip.position="right",
+             labeller = labeller(hr_over_type = facet_labs)
+             ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.background = element_rect(
+      color="black", fill="grey90", linetype="solid"
+    )
+  )
+
+## SAVE ##
+ggsave("figures/hrover_nyr_bxplts_href1_i100.png", width=9, height=6.5)
+
+
+## plot model % coverage differences of each species ## -----------------------
+
+## lengthen data (mean effect)
+results_long1 <- results %>%
+  mutate(
+    sp_rank = as.numeric(
+      as.factor(
+        reorder(scientific_name, -hr50_upreff, FUN = "median")))
+    ) %>% 
+  dplyr::select(scientific_name, site_name, sp_rank, hr95_over_t, hr50_over_t, 
+                hr95_mneff, hr50_mneff) %>% 
+  tidyr::pivot_longer(
+    cols=c("hr95_mneff", "hr50_mneff"), 
+    names_to = "hr_over_type", 
+    values_to = "mneff") %>% 
+  mutate(
+    hr_over_type = ifelse(hr_over_type == "hr95_mneff", "hr95", "hr50")
+  )
+## lower CI
+results_long2 <- results %>% 
+  dplyr::select(scientific_name, site_name, hr95_over_t, hr50_over_t, 
+                hr95_lwreff, hr50_lwreff) %>% 
+  tidyr::pivot_longer(
+    cols=c("hr95_lwreff", "hr50_lwreff"), 
+    names_to = "hr_over_type", 
+    values_to = "lwreff") %>% 
+  mutate(
+    hr_over_type = ifelse(hr_over_type == "hr95_lwreff", "hr95", "hr50")
+  )
+## upper CI
+results_long3 <- results %>% 
+  dplyr::select(scientific_name, site_name, hr95_over_t, hr50_over_t, 
+                hr95_upreff, hr50_upreff) %>% 
+  tidyr::pivot_longer(
+    cols=c("hr95_upreff", "hr50_upreff"), 
+    names_to = "hr_over_type", 
+    values_to = "upreff") %>% 
+  mutate(
+    hr_over_type = ifelse(hr_over_type == "hr95_upreff", "hr95", "hr50")
+  )
+## combine
+results_long <- results_long1 %>% 
+  left_join(results_long2) %>% left_join(results_long3) %>% 
+  mutate(
+    hr_over_type = factor(hr_over_type, levels=c("hr95", "hr50"))
+  )
+
+## facet labels 
+facet_labs        <- c("95% area", "50% area")
+names(facet_labs) <- c("hr95", "hr50")
+
+## PLOT ## -------------------------------------------------------------------
+ggplot() + 
+  geom_linerange(data=results_long, 
+               aes(x=reorder(scientific_name, sp_rank), 
+                   ymin=lwreff, ymax = upreff), color = "black") +
+  geom_point(data=results_long, 
+             aes(x=reorder(scientific_name, mneff), 
+                 y=mneff), color = "black") + 
+  facet_wrap(~hr_over_type, nrow=2,
+             strip.position="right",
+             labeller = labeller(hr_over_type = facet_labs)
+  ) + 
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.background = element_rect(
+      color="black", fill="grey90", linetype="solid"
+    )
+  )
+
+ggsave("figures/hrover_nyr_effszs_href1_i100.png", width=9, height=6.5)

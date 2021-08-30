@@ -37,9 +37,9 @@ n_uds_list <- list()
 
 
 ## LOOP ! ---------------------------------------------------------------------
-udfiles     <- udfiles[2]
-udfilenames <- udfilenames[2]
-iaudfiles   <- iaudfiles[2]
+udfiles     <- udfiles[1:2]
+udfilenames <- udfilenames[1:2]
+iaudfiles   <- iaudfiles[1:2]
 
 avg_out_df_list <- vector("list", length(udfiles))
 
@@ -47,7 +47,8 @@ tictoc::tic()
 
 registerDoSNOW(cl)
 
-nCores <- parallel::detectCores() - 1
+# nCores <- parallel::detectCores() - 1
+nCores <- 2
 cl <- makeSOCKcluster(nCores)
 registerDoSNOW(cl)
 # registerDoSEQ()
@@ -202,8 +203,29 @@ foreach(
         
         KDEset <- raster::subset(KDEraster, id_sample$tripID)
         
-        KDEset_cmbn <- raster::mean(KDEset)
-        # mapview(KDEset_cmbn)
+        ## split samples into groups (i.e. n years) to imitate ref dist. calc ---
+        if(y > 1){
+          nids <- nlayers(KDEset)
+          sample_ids <- data.frame(
+            rows   = 1:nids
+          )
+          unordered <- rep(
+            seq_len(y),
+            each = ceiling(nids / y)
+          )
+          sample_ids$samplegrp <- sample(unordered, size = nids)
+          sample_list <- split(sample_ids, sample_ids$samplegrp)
+          
+          KDEset_cmbn_list <- list()
+          for(q in seq_along(sample_list)){
+            samplegrp <- sample_list[[q]]
+            KDEset_cmbn_list[[q]] <- raster::mean(KDEset[[samplegrp$rows]])
+          }
+          KDEset_cmbn <- raster::mean(stack(KDEset_cmbn_list))
+        } else {
+          KDEset_cmbn <- raster::mean(KDEset)
+        }
+        # mapview::mapview(KDEset_cmbn)
   
         ## Calculate simple overlap of contour areas btwn sample and ref dist ~
         ## Sample CDF (isopleth) areas 

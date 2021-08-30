@@ -3,16 +3,18 @@
 pacman::p_load(ggplot2, stringr)
 
 folder <- "data/analysis/n_effects_avg/"
+folder <- "data/exploration/test/"
 
 n_its <- "i50"
+# n_its <- "i1"
 
 files     <- list.files(folder, full.names = T, pattern = n_its)
 filenames <- tools::file_path_sans_ext(list.files(folder, pattern = n_its))
 
 # its <- do.call(rbind, str_split(filenames, pattern = "_"))[1,3]
 
-files <- files[1]
-filenames <- filenames[1]
+files <- files[c(2,4)]
+filenames <- filenames[c(2,4)]
 
 for(i in seq_along(files)){
   
@@ -26,7 +28,7 @@ for(i in seq_along(files)){
       sd_hr95 = sd_hr95 * 100,
       sd_hr50 = sd_hr50 * 100,
     )
-  
+
   # plot species-site results
   # Overlap - Number of years ----------------------------
   p_nyrs <- ggplot() +
@@ -148,7 +150,7 @@ for(i in seq_along(files)){
   
   ### Basic % HR overlap measure ---------------------------------------------
   ## 50%
-  ggplot() +
+  p_nyrs_50 <- ggplot() +
     geom_linerange(
       data=avg_out_df,
       aes(ymin=m_hr50-sd_hr50, ymax=m_hr50+sd_hr50, 
@@ -164,7 +166,7 @@ for(i in seq_along(files)){
     theme_bw()
   
   ## 95%
-  ggplot() +
+  p_ntrx_95 <- ggplot() +
     geom_linerange(
       data=avg_out_df,
       aes(ymin=m_hr95-sd_hr95, ymax=m_hr95+sd_hr95, x=n_trx, color=as.factor(n_yrs)),
@@ -177,5 +179,14 @@ for(i in seq_along(files)){
     scale_x_continuous(breaks=scales::pretty_breaks()) +
     labs(color = "N years", fill = "N years") +
     theme_bw()
+  
+  filename <- paste0("figures/n_effects/hr_overlap/nyrs_area50_", 
+                     asp, "_", asite, "_", n_its, ".png")
+  ggsave(filename, plot = p_nyrs_50, width=7, height=7)
+  
+  filename <- paste0("figures/n_effects/hr_overlap/ntrx_area95_", 
+                     asp, "_", asite, "_", n_its, ".png")
+  ggsave(filename, plot = p_ntrx_95, width=7, height=7)
+  
 }
 

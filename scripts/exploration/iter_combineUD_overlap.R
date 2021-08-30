@@ -272,9 +272,15 @@ ggplot() +
 
 ggplot() + 
   # geom_boxplot(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA)) + 
-  geom_boxplot(data=yr_overs, aes(x=reorder(scientific_name, BA, FUN = "median"), y=BA)) + 
-  geom_dotplot(data=yr_overs, aes(x=reorder(scientific_name, BA, FUN = "median"), y=BA), binaxis = "y", binwidth = .005, stackdir='center', dotsize=1, alpha=0.2) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_boxplot(data=yr_overs, 
+               aes(x=reorder(scientific_name, BA, FUN = "median"), y=BA), fill="antiquewhite") + 
+  geom_dotplot(data=yr_overs, 
+               aes(x=reorder(scientific_name, BA, FUN = "median"), y=BA), binaxis = "y", binwidth = .005, stackdir='center', dotsize=1, alpha=0.2) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(t = 2, r = 2, b = 2, l = 7, unit = "mm")
+    ) +
   ylab("Overlap (BA)") + xlab("") + ylim(c(0,1))
 # stat_summary(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA), fun = mean, geom = "point") +
 # stat_summary(data=yr_overs, aes(x=reorder(scientific_name, BA), y=BA), fun.data=yr_overs$BA, fun = mean_se, geom = "errorbar")
