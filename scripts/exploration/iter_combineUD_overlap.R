@@ -39,14 +39,32 @@ n_uds_list <- list()
 # udfilenames <- udfilenames[25]
 
 #### 
-iterations <- 10
+iterations <- 1
 
 yr_overs_mlist <- vector("list", length(udfiles))
 ia_overs_mlist <- vector("list", length(udfiles))
 KDEids_list    <- vector("list", length(udfiles))
 
-for(i in seq_along(udfiles)){
-  print(paste("sp: ", i))
+tictoc::tic()
+
+nCores <- parallel::detectCores() - 1
+# nCores <- 2
+cl <- makeSOCKcluster(nCores)
+registerDoSNOW(cl)
+# registerDoSEQ()
+ntasks <- length(udfiles)
+pb <- tcltk::tkProgressBar(max=ntasks)
+progress <- function(n) {tcltk::setTkProgressBar(pb, n)}
+opts <- list(progress=progress)
+
+## loop-de-loop ---------------------------------------------------------------
+result_list <- foreach(
+  i = seq_along(udfiles), .packages = c("raster", "dplyr", "sp", "sf", "raster",
+                                        "ggplot2", "stringr", "data.table") 
+  # .verbose = T,
+  ,.options.snow = opts
+) %dopar% {
+  
   KDEraster <- readRDS(udfiles[i])
   
   asp     <- do.call(rbind, str_split(udfilenames, pattern="_"))[,1][i]
@@ -79,7 +97,7 @@ for(i in seq_along(udfiles)){
   ## Keep only ids from yrs meeting criteria ##
   KDEids <- filter(KDEids, season_year %in% sel_yrs$season_year)
   
-  KDEids_list[[i]] <- KDEids
+  # KDEids_list[[i]] <- KDEids
   
   ## putting iterations within species loop, to control number of iterations 
   # per species based on number possible, given number of trips 
@@ -131,7 +149,7 @@ for(i in seq_along(udfiles)){
       KDEyr_a <- raster::calc(KDEselected_yr,
                               mean, filename = filename, overwrite=T) # arithmetic mean
       # raster::metadata(KDEyr_a) <- list(nrow(oneyr))
-      writeRaster(KDEyr_a, filename = filename, overwrite=T)
+      # writeRaster(KDEyr_a, filename = filename, overwrite=T)
       yrs_n_uds[[x]] <- data.frame(scientific_name = asp, 
                                    site_name = asite,
                                    breed_stage = bstage,
@@ -147,31 +165,31 @@ for(i in seq_along(udfiles)){
       raster(yr_files[x])
     })
     
-    if(iatype == "a"){
-      outfolder_iaa <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
-      filename  <- paste0(outfolder_iaa, 
-                          paste(asp, asite, bstage, htype, sep = "_"), ".tif")
-      
-      iaud <- raster::calc(stack(yruds), filename = filename, mean,
-                           overwrite=TRUE)
-    } else {
-      ## inter-annual distribution (iaa) ##  ------------------------------------
-      ## Randomly select which trip will represent individual's dist. ## --------
-      selected <- KDEids %>%
-        group_by(bird_id) %>% sample_n(1)
-      
-      KDEselected <- raster::subset(KDEraster, selected$tripID)
-      
-      ## inter-annual distribution (iaw) ##  ------------------------------------
-      ## w - weighting is by number of individuals per year (implicit)
-      outfolder_iaw <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
-      filename  <- paste0(outfolder_iaaw, paste(asp, asite, bstage, htype, sep = "_"), ".tif")
-      
-      # arithmetic mean - all individuals equally weighted --------------------
-      iaud <- raster::calc(KDEselected,
-                           mean, filename=filename, overwrite=T) # arithmetic mean
-      # mapview::mapview(KDEinterann_a)
-    }
+    # if(iatype == "a"){
+    #   outfolder_iaa <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
+    #   filename  <- paste0(outfolder_iaa, 
+    #                       paste(asp, asite, bstage, htype, sep = "_"), ".tif")
+    #   
+    #   iaud <- raster::calc(stack(yruds), filename = filename, mean,
+    #                        overwrite=TRUE)
+    # } else {
+    #   ## inter-annual distribution (iaa) ##  ------------------------------------
+    #   ## Randomly select which trip will represent individual's dist. ## --------
+    #   selected <- KDEids %>%
+    #     group_by(bird_id) %>% sample_n(1)
+    #   
+    #   KDEselected <- raster::subset(KDEraster, selected$tripID)
+    #   
+    #   ## inter-annual distribution (iaw) ##  ------------------------------------
+    #   ## w - weighting is by number of individuals per year (implicit)
+    #   outfolder_iaw <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
+    #   filename  <- paste0(outfolder_iaaw, paste(asp, asite, bstage, htype, sep = "_"), ".tif")
+    #   
+    #   # arithmetic mean - all individuals equally weighted --------------------
+    #   iaud <- raster::calc(KDEselected,
+    #                        mean, filename=filename, overwrite=T) # arithmetic mean
+    #   # mapview::mapview(KDEinterann_a)
+    # }
     
     ## Calculate overlap between pairwise years ## ------------------------------
     pixArea <- res(yruds[[1]])[1] ## cell size resolution 
@@ -186,25 +204,14 @@ for(i in seq_along(udfiles)){
     
     # tictoc::tic()
     
-    maxCores <- parallel::detectCores()
-    # ensure that at least one core is un-used 
-    nCores <- maxCores - 1
-    cl <- parallel::makeCluster(nCores)
-    doParallel::registerDoParallel(cl)
-    
-    yr_over$BA <- foreach::foreach(
-      x  = seq_along(yr_over$yr_x), .combine = 'c', .packages = c("raster")
-    ) %dopar% {
+    for(x in seq_along(yr_over$yr_x)) {
       print(x)
       yrudx <- yruds[[yr_over$yr_x[x]]]
       yrudy <- yruds[[yr_over$yr_y[x]]]
       
-      BAval <- sum(sqrt(values(yrudx)) * sqrt(values(yrudy))) * (pixArea^2)
-      return(BAval)
+      yr_over[x, 3] <- sum(sqrt(values(yrudx)) * sqrt(values(yrudy))) * (pixArea^2)
       # return(yr_mtrx)
     }
-    
-    parallel::stopCluster(cl = cl)
     
     yr_over <- yr_over %>% mutate(
       scientific_name = asp, site_name = asite, breeding_stage = bstage,
@@ -233,17 +240,25 @@ for(i in seq_along(udfiles)){
     
     # tictoc::toc(log=T)
     ## Report sample sizes used ## --------------------------------------------
-    n_uds_list[[i]] <- rbindlist(yrs_n_uds)
   }
-  
-  yr_overs_mlist[[i]] <- rbindlist(yr_overs_list)
-  ia_overs_mlist[[i]] <- rbindlist(ia_overs_list)
+  ## Results
+  return(
+    list(KDEids     = KDEids,
+         yr_overlap = rbindlist(yr_overs_list)
+         )
+  )
   
 }
 
-KDEids_all <- rbindlist(KDEids_list)
-yr_overs <- rbindlist(yr_overs_mlist)
-ia_overs <- rbindlist(ia_overs_mlist)
+parallel::stopCluster(cl = cl)
+
+tictoc::toc()
+
+##
+
+KDEids_all <- rbindlist(lapply(result_list, function(x) x[[1]] ))
+yr_overs   <- rbindlist(lapply(result_list, function(x) x[[2]] ))
+# ia_overs <- rbindlist(lapply(result_list, function(x) x[[3]] ))
 
 sampsize <- KDEids_all %>% group_by(scientific_name, site_name, season_year) %>% 
   summarise(
@@ -251,6 +266,7 @@ sampsize <- KDEids_all %>% group_by(scientific_name, site_name, season_year) %>%
     n_trips = n_distinct(tripID),
     n_diff  = n_trips - n_birds
   )
+
 
 ## Save ## --------------------------------------------------------------------
 fwrite(sampsize, "data/summaries/n_trips_birds_KDEs_yr.csv")

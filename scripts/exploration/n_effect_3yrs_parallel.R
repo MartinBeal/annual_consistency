@@ -32,12 +32,12 @@ iaudfolder <- paste0("data/analysis/interannual_UDs_a/", stage)
 iaudfiles  <- list.files(iaudfolder, full.names = T, pattern = htype)
 
 thresh <- 10 # minimum # of birds needed per year for inclusion in analysis
-its <- 1    # how many times re-combine and iterate calculation?
+its <- 100    # how many times re-combine and iterate calculation?
 
 ## LOOP ! ---------------------------------------------------------------------
-udfiles     <- udfiles[2]
-udfilenames <- udfilenames[2]
-iaudfiles   <- iaudfiles[2]
+udfiles     <- udfiles[10]
+udfilenames <- udfilenames[10]
+iaudfiles   <- iaudfiles[10]
 
 tictoc::tic()
 
@@ -110,72 +110,117 @@ foreach(
   
   n <- length(KDEraster@layers) # total number of tracks (bird-trips)
   
-  ## Get inter-annual (reference) distribution ## -----------------------------
-  # KDEcmbn <- raster::mean(KDEraster) # OLD combined (averaged) UD (all birds)
-  KDEcmbn <- raster(iaudfiles[i])
+  ## iterate steps -------------------------------------------------------------
+  for(k in seq(its) ) {
+    print(paste("it =", k))
   
-  ## Calculate area of full sample's foraging area ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  pixArea <- res(KDEcmbn)[1]
+    # Choose a trip per bird, derive year UDs, combine into ref dist ------------
+    yrs <- sel_yrs$season_year
+    nyrs <- length(yrs)
+    yrs_n_uds <- vector("list", nyrs)
+    
+    for(x in seq_along(yrs)){
+      print(paste("year", x))
+      # filter to one year of data and randomly select one trip per bird #
+      yr <- yrs[x]
+      oneyr <- KDEids %>% filter(season_year == yr) %>% 
+        group_by(bird_id) %>% sample_n(1)
+      
+      KDEselected_yr <- raster::subset(KDEraster, oneyr$tripID)
+      
+      if(!dir.exists(outfolder_yr)) {dir.create(outfolder)}
+      filename  <- paste0(outfolder_yr, 
+                          paste(asp, asite, bstage, yr, htype, sep = "_"), ".tif")
+      
+      KDEyr_a <- raster::calc(KDEselected_yr,
+                              mean, filename = filename, overwrite=T) # arithmetic mean
+      # raster::metadata(KDEyr_a) <- list(nrow(oneyr))
+      # writeRaster(KDEyr_a, filename = filename, overwrite=T)
+      yrs_n_uds[[x]] <- data.frame(scientific_name = asp, 
+                                   site_name = asite,
+                                   breed_stage = bstage,
+                                   yr          = yr,
+                                   n           = nrow(oneyr))
+    }
+    
+    ## inter-annual distribution (iaa) ##  --------------------------------------
+    ## a - yearly distributions are averaged together arithmetically (equal weights)
+    yr_files <- list.files(outfolder_yr, full.names = T, pattern = htype)
+    
+    yruds <- lapply(seq_along(yr_files), function(x){
+      raster(yr_files[x])
+    })
+    
+    outfolder_iaa <- paste0("data/analysis/interannual_UDs_a/", stage, "/")
+    filename  <- paste0(outfolder_iaa, 
+                        paste(asp, asite, bstage, htype, sep = "_"), ".tif")
+    
+    KDEcmbn <- raster::calc(stack(yruds), filename = filename, mean,
+                         overwrite=TRUE)
+    # KDEcmbn <- raster::mean(KDEraster) # OLD (just average ALL trip UDs)
   
-  fullrange95 <- ud2iso(KDEcmbn, 95, simple = T)     # contour areas
-  fullrange50 <- ud2iso(KDEcmbn, 50, simple = T)
-  # # mapview::mapview(fullrange95, na.color = NA) + mapview::mapview(fullrange50, na.color = NA) 
-  # 
-  ncells <- sum(!is.na(raster::getValues(fullrange95)))
-  area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-  ncells <- sum(!is.na(raster::getValues(fullrange50)))
-  area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
-  full_area <- c(area95, area50)
-  full_area
+    ## Calculate area of full sample's foraging area ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    pixArea <- res(KDEcmbn)[1]
+    
+    fullrange95 <- ud2iso(KDEcmbn, 95, simple = T)     # contour areas
+    fullrange50 <- ud2iso(KDEcmbn, 50, simple = T)
+    # # mapview::mapview(fullrange95, na.color = NA) + mapview::mapview(fullrange50, na.color = NA) 
+    # 
+    ncells <- sum(!is.na(raster::getValues(fullrange95)))
+    area95 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+    ncells <- sum(!is.na(raster::getValues(fullrange50)))
+    area50 <- (ncells * pixArea^2) / (1000^2)  # area of range (sq.km)
+    full_area <- c(area95, area50)
+    full_area
+    
+    ### LOOP HERE 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    minn <- min(yrly_ss$n_ids) # what is minimum single-year sample size?
+    
+    avg_out_list <- vector("list", length(seq_len(minn)))
+    its_out_list <- vector("list", length(seq_len(minn)))
+    
+    third_ss <- sort(yrly_ss$n_ids, decreasing = T)[3] # yr w/ 3rd hiest ss
+    
+    # set min sample size to test -lowest year-ss minus 2, ensure many possible combs
+    if(nrow(yrly_ss) > 3 & third_ss > 10){
+      minn <- third_ss - 2
+    } else {
+      minn <- min(yrly_ss$n_ids) - 2
+    }
+    
+    ## loop n years (and not sample sizes)
+    yrly_ss <- filter(yrly_ss, n_ids >= (minn + 2)) # filter to only top-3 years
+    years   <- unique(yrly_ss$season_year) # years with data
+    n_yr    <- length(years) # how many years ?
+    seq_n_yr_sample <- 1:n_yr
+    
+    ## custom function for calculating set of years to choose from for y=1
+    ## downweights years w/ sample size at minimum n (b/c few combinations)
+    # yr1_sample <- sample_y1(its, n_yr, yrly_ss, field_year = "season_year") 
+    ## even weights for all years
+    yr1_sample <- sample(yrly_ss$season_year, its, replace = T)
+    
+    output <- data.frame(
+      n_trx  = minn,
+      n_yrs  = sort(rep(seq_n_yr_sample, its))
+    ) %>% group_by(n_yrs) %>% 
+      mutate(
+        it = 1:n(),
+        # ids = rep(NA),
+        BAval  = rep(NA),
+        BAval95  = rep(NA),
+        BAval50  = rep(NA),
+        area95 = rep(NA),
+        area50 = rep(NA),
+        hr95_over = rep(NA),
+        hr50_over = rep(NA)
+      ) %>% as.data.frame()
   
-  ### LOOP HERE 
-  #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  minn <- min(yrly_ss$n_ids) # what is minimum single-year sample size?
-  
-  avg_out_list <- vector("list", length(seq_len(minn)))
-  its_out_list <- vector("list", length(seq_len(minn)))
-  
-  third_ss <- sort(yrly_ss$n_ids, decreasing = T)[3] # yr w/ 3rd hiest ss
-  
-  # set min sample size to test -lowest year-ss minus 2, ensure many possible combs
-  if(nrow(yrly_ss) > 3 & third_ss > 10){
-    minn <- third_ss - 2
-  } else {
-    minn <- min(yrly_ss$n_ids) - 2
-  }
-  
-  ## loop n years (and not sample sizes)
-  yrly_ss <- filter(yrly_ss, n_ids >= (minn + 2)) # filter to only top-3 years
-  years   <- unique(yrly_ss$season_year) # years with data
-  n_yr    <- length(years) # how many years ?
-  seq_n_yr_sample <- 1:n_yr
-  
-  ## custom function for calculating set of years to choose from for y=1
-  ## downweights years w/ sample size at minimum n (b/c few combinations)
-  # yr1_sample <- sample_y1(its, n_yr, yrly_ss, field_year = "season_year") 
-  ## even weights for all years
-  yr1_sample <- sample(yrly_ss$season_year, its, replace = T)
-  
-  output <- data.frame(
-    n_trx  = minn,
-    n_yrs  = sort(rep(seq_n_yr_sample, its))
-  ) %>% group_by(n_yrs) %>% 
-    mutate(
-      it = 1:n(),
-      # ids = rep(NA),
-      BAval  = rep(NA),
-      BAval95  = rep(NA),
-      BAval50  = rep(NA),
-      area95 = rep(NA),
-      area50 = rep(NA),
-      hr95_over = rep(NA),
-      hr50_over = rep(NA)
-    ) %>% as.data.frame()
-
-  for(y in seq_len(n_yr)){ # sample years 
-    print(paste("year =", y))
-    # if(y > e){next}
-    for(k in seq(its) ){      # iterate sampling of tracks
+    for(y in seq_len(n_yr)){ # sample years 
+      print(paste("year =", y))
+      # if(y > e){next}
+      # iterate sampling of tracks
       print(paste("it =", k))
       if(y == 1){
         which_yrs <- yr1_sample[k]
@@ -251,9 +296,8 @@ foreach(
       output[(output$n_yrs) == y & (output$it) == k, ]$area50   <- ovr_area50
       output[(output$n_yrs) == y & (output$it) == k, ]$hr95_over <- hr95_over
       output[(output$n_yrs) == y & (output$it) == k, ]$hr50_over <- hr50_over
-      
+  
     }
-    
   }
   
   avg_out <- output %>% group_by(n_trx, n_yrs) %>% summarise(
