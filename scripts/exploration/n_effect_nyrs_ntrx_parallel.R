@@ -204,27 +204,7 @@ foreach(
         KDEset <- raster::subset(KDEraster, id_sample$tripID)
         
         ## split samples into groups (i.e. n years) to imitate ref dist. calc ---
-        if(y > 1){
-          nids <- nlayers(KDEset)
-          sample_ids <- data.frame(
-            rows   = 1:nids
-          )
-          unordered <- rep(
-            seq_len(y),
-            each = ceiling(nids / y)
-          )
-          sample_ids$samplegrp <- sample(unordered, size = nids)
-          sample_list <- split(sample_ids, sample_ids$samplegrp)
-          
-          KDEset_cmbn_list <- list()
-          for(q in seq_along(sample_list)){
-            samplegrp <- sample_list[[q]]
-            KDEset_cmbn_list[[q]] <- raster::mean(KDEset[[samplegrp$rows]])
-          }
-          KDEset_cmbn <- raster::mean(stack(KDEset_cmbn_list))
-        } else {
-          KDEset_cmbn <- raster::mean(KDEset)
-        }
+        KDEset_cmbn <- raster::mean(KDEset)
         # mapview::mapview(KDEset_cmbn)
   
         ## Calculate simple overlap of contour areas btwn sample and ref dist ~
